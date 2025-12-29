@@ -39,10 +39,14 @@ api.interceptors.response.use(
       // Server responded with error
       console.error('API Error:', error.response.data);
 
-      // Redirect to login if unauthorized (but not if already on login page)
-      if (error.response.status === 401 && window.location.pathname !== '/') {
-        // Only redirect if not already redirecting
-        if (!window.location.pathname.includes('/login')) {
+      // Redirect to login if unauthorized (token expired or invalid)
+      if (error.response.status === 401) {
+        // Clear invalid token
+        localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
+
+        // Redirect to login if not already there
+        if (window.location.pathname !== '/') {
           window.location.href = '/';
         }
       }
