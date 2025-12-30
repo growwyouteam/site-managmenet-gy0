@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 const SMTransfer = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [transfers, setTransfers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [labours, setLabours] = useState([]);
@@ -15,10 +18,11 @@ const SMTransfer = () => {
 
   const fetchData = async () => {
     try {
+      const baseUrl = isAdmin ? '/admin' : '/site';
       const [transfersRes, projectsRes, laboursRes] = await Promise.all([
-        api.get('/site/transfers'),
-        api.get('/site/projects'),
-        api.get('/site/labours')
+        api.get(`${baseUrl}/transfers`),
+        api.get(`${baseUrl}/projects`),
+        api.get(`${baseUrl}/labours`)
       ]);
 
       if (transfersRes.data.success) {
@@ -45,7 +49,8 @@ const SMTransfer = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/site/transfer', {
+      const baseUrl = isAdmin ? '/admin' : '/site';
+      const response = await api.post(`${baseUrl}/transfer`, {
         ...formData,
         quantity: Number(formData.quantity) || 1
       });
