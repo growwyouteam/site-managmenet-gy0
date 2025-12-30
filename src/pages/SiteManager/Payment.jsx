@@ -65,7 +65,7 @@ const Payment = () => {
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Select Labour</label>
               <select value={formData.labourId} onChange={(e) => {
-                const labour = labours.find(l => l.id === e.target.value);
+                const labour = labours.find(l => l._id === e.target.value);
                 setFormData({ ...formData, labourId: e.target.value, amount: labour?.pendingPayout || 0 });
               }} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select Labour</option>
