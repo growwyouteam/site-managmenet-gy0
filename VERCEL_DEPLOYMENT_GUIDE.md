@@ -28,7 +28,7 @@ Before you begin, ensure you have:
 ### 1.1 Update Your Local Environment Files
 
 **Backend `.env` file** (located in `backend/.env`):
-```env
+```env 
 PORT=5000
 NODE_ENV=production
 MONGODB_URI=mongodb+srv://growwyouwithus_db_user:yvn3QUOSBeZoE2H5@cluster0.racbswp.mongodb.net/site?appName=Cluster0
