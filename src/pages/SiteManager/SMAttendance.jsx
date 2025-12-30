@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
 import Camera from '../../components/Camera';
+import { useAuth } from '../../context/AuthContext';
 
 const SMAttendance = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [attendance, setAttendance] = useState([]);
   const [projects, setProjects] = useState([]);
   const [showCamera, setShowCamera] = useState(false);
@@ -16,8 +19,8 @@ const SMAttendance = () => {
   const fetchData = async () => {
     try {
       const [attendanceRes, projectsRes] = await Promise.all([
-        api.get('/site/attendance'),
-        api.get('/site/projects')
+        api.get(`${baseUrl}/attendance`),
+        api.get(`${baseUrl}/projects`)
       ]);
 
       if (attendanceRes.data.success) {
@@ -47,7 +50,7 @@ const SMAttendance = () => {
       return;
     }
     try {
-      const response = await api.post('/site/attendance', formData);
+      const response = await api.post(`${baseUrl}/attendance`, formData);
       if (response.data.success) {
         showToast('Attendance marked successfully', 'success');
         setFormData({ date: new Date().toISOString().split('T')[0], projectId: projects[0]?._id || '', photo: '', remarks: '' });

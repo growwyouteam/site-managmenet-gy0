@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 const Labour = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [labours, setLabours] = useState([]);
   const [projects, setProjects] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -15,8 +18,8 @@ const Labour = () => {
   const fetchData = async () => {
     try {
       const [laboursRes, projectsRes] = await Promise.all([
-        api.get('/site/labours'),
-        api.get('/site/projects')
+        api.get(`${baseUrl}/labours`),
+        api.get(`${baseUrl}/projects`)
       ]);
 
       if (laboursRes.data.success) {
@@ -38,7 +41,7 @@ const Labour = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/site/labours', formData);
+      const response = await api.post(`${baseUrl}/labours`, { formData });
       if (response.data.success) {
         showToast('Labour enrolled successfully', 'success');
         setShowForm(false);

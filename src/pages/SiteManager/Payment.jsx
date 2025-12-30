@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 const Payment = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [labours, setLabours] = useState([]);
   const [payments, setPayments] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ labourId: '', amount: '', deduction: 0, paymentMode: 'cash', remarks: '' });
+  const [formData, setFormData] = useState({ labourId: '', amount: 0, deduction: 0, paymentMode: 'cash', remarks: '' });
 
   useEffect(() => {
     fetchData();
@@ -15,8 +18,8 @@ const Payment = () => {
   const fetchData = async () => {
     try {
       const [laboursRes, paymentsRes] = await Promise.all([
-        api.get('/site/labours'),
-        api.get('/site/payments')
+        api.get(`${baseUrl}/labours`),
+        api.get(`${baseUrl}/payments`)
       ]);
 
       if (laboursRes.data.success) {
@@ -34,7 +37,7 @@ const Payment = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/site/payment', {
+      const response = await api.post(`${baseUrl}/payments`, {
         ...formData,
         amount: Number(formData.amount) || 0,
         deduction: Number(formData.deduction) || 0

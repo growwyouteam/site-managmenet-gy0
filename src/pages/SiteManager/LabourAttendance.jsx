@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 const LabourAttendance = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [labours, setLabours] = useState([]);
   const [projects, setProjects] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -15,9 +18,9 @@ const LabourAttendance = () => {
   const fetchData = async () => {
     try {
       const [laboursRes, projectsRes, attendanceRes] = await Promise.all([
-        api.get('/site/labours'),
-        api.get('/site/projects'),
-        api.get('/site/labour-attendance')
+        api.get(`${baseUrl}/labours`),
+        api.get(`${baseUrl}/projects`),
+        api.get(`${baseUrl}/labour-attendance`)
       ]);
 
       if (laboursRes.data.success) {
@@ -43,7 +46,7 @@ const LabourAttendance = () => {
   const handleSave = async (labour) => {
     const status = statusMap[labour._id] || 'present';
     try {
-      const response = await api.post('/site/labour-attendance', {
+      const response = await api.post(`${baseUrl}/labour-attendance`, {
         labourId: labour._id,
         labourName: labour.name,
         projectId: labour.assignedSite?._id || projects[0]?._id || '',

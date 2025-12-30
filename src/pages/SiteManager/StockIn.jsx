@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 const StockIn = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const units = ['kg', 'ltr', 'bags', 'pcs', 'meter', 'box', 'ton'];
   const [vendors, setVendors] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -16,9 +19,9 @@ const StockIn = () => {
   const fetchData = async () => {
     try {
       const [vendorsRes, projectsRes, stocksRes] = await Promise.all([
-        api.get('/site/vendors'),
-        api.get('/site/projects'),
-        api.get('/site/stocks')
+        api.get(`${baseUrl}/vendors`),
+        api.get(`${baseUrl}/projects`),
+        api.get(`${baseUrl}/stocks`)
       ]);
 
       if (vendorsRes.data.success) {
@@ -46,7 +49,7 @@ const StockIn = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/site/stock-in', {
+      const response = await api.post(`${baseUrl}/stock-in`, {
         ...formData,
         quantity: Number(formData.quantity) || 0,
         unitPrice: Number(formData.unitPrice) || 0

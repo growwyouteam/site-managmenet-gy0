@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { showToast } from '../../components/Toast';
 
 const SMDashboard = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -13,7 +16,7 @@ const SMDashboard = () => {
 
   const fetchDashboard = async () => {
     try {
-      const response = await api.get('/site/dashboard');
+      const response = await api.get(`${baseUrl}/dashboard`);
       if (response.data.success) {
         setData(response.data.data);
       }

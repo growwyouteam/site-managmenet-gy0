@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { showToast } from '../../components/Toast';
 
 const Profile = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -12,7 +15,7 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await api.get('/site/profile');
+      const response = await api.get(`${baseUrl}/profile`);
       if (response.data.success) {
         setProfile(response.data.data);
       } else {

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 const SMExpenses = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [projects, setProjects] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -15,8 +18,8 @@ const SMExpenses = () => {
   const fetchData = async () => {
     try {
       const [projectsRes, expensesRes] = await Promise.all([
-        api.get('/site/projects'),
-        api.get('/site/expenses')
+        api.get(`${baseUrl}/projects`),
+        api.get(`${baseUrl}/expenses`)
       ]);
 
       if (projectsRes.data.success) {
@@ -38,7 +41,7 @@ const SMExpenses = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/site/expenses', {
+      const response = await api.post(`${baseUrl}/expenses`, {
         ...formData,
         amount: Number(formData.amount) || 0
       });

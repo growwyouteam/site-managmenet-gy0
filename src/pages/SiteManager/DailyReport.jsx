@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
 import Camera from '../../components/Camera';
+import { useAuth } from '../../context/AuthContext';
 
 const DailyReport = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [projects, setProjects] = useState([]);
   const [reports, setReports] = useState([]);
   const [showCamera, setShowCamera] = useState(false);
@@ -16,8 +19,8 @@ const DailyReport = () => {
   const fetchData = async () => {
     try {
       const [projectsRes, reportsRes] = await Promise.all([
-        api.get('/site/projects'),
-        api.get('/site/daily-reports')
+        api.get(`${baseUrl}/projects`),
+        api.get(`${baseUrl}/daily-reports`)
       ]);
 
       if (projectsRes.data.success) {
@@ -43,7 +46,7 @@ const DailyReport = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/site/daily-report', formData);
+      const response = await api.post(`${baseUrl}/daily-reports`, formData);
       if (response.data.success) {
         showToast('Daily report submitted', 'success');
         setFormData({ projectId: projects[0]?._id || '', reportType: 'morning', description: '', photos: [] });

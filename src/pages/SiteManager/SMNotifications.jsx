@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { showToast } from '../../components/Toast';
 
 const SMNotifications = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
@@ -11,7 +14,7 @@ const SMNotifications = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await api.get('/site/notifications');
+      const response = await api.get(`${baseUrl}/notifications`);
       if (response.data.success) {
         setNotifications(response.data.data);
       }
@@ -22,7 +25,7 @@ const SMNotifications = () => {
 
   const markAsRead = async (id) => {
     try {
-      const response = await api.put(`/site/notifications/${id}/read`);
+      const response = await api.put(`${baseUrl}/notifications/${id}/read`);
       if (response.data.success) {
         fetchNotifications();
       }

@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
 import Camera from '../../components/Camera';
+import { useAuth } from '../../context/AuthContext';
 
 const Gallery = () => {
+  const { user } = useAuth();
+  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const [projects, setProjects] = useState([]);
   const [gallery, setGallery] = useState([]);
-  const [showCamera, setShowCamera] = useState(false);
   const [selectedProject, setSelectedProject] = useState('');
   const [capturedImages, setCapturedImages] = useState([]);
+  const [showCamera, setShowCamera] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -17,8 +20,8 @@ const Gallery = () => {
   const fetchData = async () => {
     try {
       const [projectsRes, galleryRes] = await Promise.all([
-        api.get('/site/projects'),
-        api.get('/site/gallery')
+        api.get(`${baseUrl}/projects`),
+        api.get(`${baseUrl}/gallery`)
       ]);
 
       if (projectsRes.data.success) {
@@ -47,7 +50,7 @@ const Gallery = () => {
       return;
     }
     try {
-      const response = await api.post('/site/gallery', {
+      const response = await api.post(`${baseUrl}/gallery`, {
         projectId: selectedProject,
         images: capturedImages
       });
