@@ -31,7 +31,7 @@ const StockIn = () => {
       if (projectsRes.data.success) {
         setProjects(projectsRes.data.data);
         if (projectsRes.data.data.length > 0) {
-          setFormData(prev => ({ ...prev, projectId: projectsRes.data.data[0]._id }));
+          setFormData(prev => ({ ...prev, projectId: projectsRes.data.data[0]._id || projectsRes.data.data[0].id }));
         }
       }
 
@@ -54,7 +54,7 @@ const StockIn = () => {
 
       if (response.data.success) {
         showToast('Stock added successfully', 'success');
-        setFormData({ projectId: projects[0]?._id || '', vendorId: vendors[0]?._id || '', materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: '', remarks: '' });
+        setFormData({ projectId: projects[0]?._id || projects[0]?.id || '', vendorId: vendors[0]?._id || vendors[0]?.id || '', materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: '', remarks: '' });
         fetchData();
       }
     } catch (error) {
@@ -79,13 +79,13 @@ const StockIn = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
             <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map(p => <option key={p._id || p.id} value={p._id || p.id}>{p.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Vendor</label>
             <select value={formData.vendorId} onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              {vendors.map(v => <option key={v._id || v.id} value={v._id || v.id}>{v.name}</option>)}
             </select>
           </div>
           <div className="md:col-span-2 lg:col-span-3">
@@ -133,14 +133,14 @@ const StockIn = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {stocks.map(s => (
-            <div key={s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={s._id || s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {s.projectId}</div>
+                <div><span className="font-medium">Project:</span> {s.projectId?.name || s.projectId}</div>
                 <div><span className="font-medium">Quantity:</span> <span className="font-bold text-green-600">{s.quantity} {s.unit}</span></div>
                 <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Vendor:</span> {s.vendorName || 'N/A'}</div>
+                <div><span className="font-medium">Vendor:</span> {s.vendorId?.name || 'N/A'}</div>
                 <div><span className="font-medium">Date:</span> {new Date(s.createdAt).toLocaleDateString()}</div>
               </div>
             </div>
@@ -164,14 +164,14 @@ const StockIn = () => {
             </thead>
             <tbody>
               {stocks.map(s => (
-                <tr key={s.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{s.projectId}</td>
+                <tr key={s._id || s.id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="px-4 py-3">{s.projectId?.name || s.projectId}</td>
                   <td className="px-4 py-3 font-medium">{s.materialName}</td>
                   <td className="px-4 py-3 font-bold text-green-600">{s.quantity}</td>
                   <td className="px-4 py-3">{s.unit}</td>
                   <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
                   <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
-                  <td className="px-4 py-3">{s.vendorName || 'N/A'}</td>
+                  <td className="px-4 py-3">{s.vendorId?.name || 'N/A'}</td>
                   <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
