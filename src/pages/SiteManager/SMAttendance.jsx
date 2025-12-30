@@ -103,7 +103,7 @@ const SMAttendance = () => {
             <div key={a._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{a.date}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {a.projectId?.name || a.projectId}</div>
+                <div><span className="font-medium">Project:</span> {typeof a.projectId === 'object' ? a.projectId?.name : a.projectId}</div>
                 <div><span className="font-medium">Time:</span> {new Date(a.time).toLocaleTimeString()}</div>
                 <div><span className="font-medium">Remarks:</span> {a.remarks || '-'}</div>
               </div>
@@ -126,7 +126,7 @@ const SMAttendance = () => {
               {attendance.map(a => (
                 <tr key={a._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{a.date}</td>
-                  <td className="px-4 py-3">{a.projectId?.name || a.projectId}</td>
+                  <td className="px-4 py-3">{typeof a.projectId === 'object' ? a.projectId?.name : a.projectId}</td>
                   <td className="px-4 py-3">{new Date(a.time).toLocaleTimeString()}</td>
                   <td className="px-4 py-3">{a.remarks || '-'}</td>
                 </tr>
