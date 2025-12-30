@@ -142,8 +142,8 @@ const Transfer = () => {
             <div key={t._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2 capitalize">{t.type}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">From:</span> {t.fromProject}</div>
-                <div><span className="font-medium">To:</span> {t.toProject}</div>
+                <div><span className="font-medium">From:</span> {typeof t.fromProject === 'object' ? t.fromProject?.name : t.fromProject}</div>
+                <div><span className="font-medium">To:</span> {typeof t.toProject === 'object' ? t.toProject?.name : t.toProject}</div>
                 <div><span className="font-medium">Status:</span> <span className="capitalize">{t.status}</span></div>
                 <div><span className="font-medium">Date:</span> {new Date(t.createdAt).toLocaleDateString()}</div>
               </div>
@@ -167,8 +167,8 @@ const Transfer = () => {
               {transfers.map(t => (
                 <tr key={t._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 capitalize">{t.type}</td>
-                  <td className="px-4 py-3">{t.fromProject}</td>
-                  <td className="px-4 py-3">{t.toProject}</td>
+                  <td className="px-4 py-3">{typeof t.fromProject === 'object' ? t.fromProject?.name : t.fromProject}</td>
+                  <td className="px-4 py-3">{typeof t.toProject === 'object' ? t.toProject?.name : t.toProject}</td>
                   <td className="px-4 py-3 capitalize">{t.status}</td>
                   <td className="px-4 py-3">{new Date(t.createdAt).toLocaleDateString()}</td>
                 </tr>

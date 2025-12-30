@@ -226,7 +226,7 @@ const Stock = () => {
             <div key={s._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {s.projectId?.name || s.projectId}</div>
+                <div><span className="font-medium">Project:</span> {typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</div>
                 <div><span className="font-medium">Quantity:</span> <span className="font-bold">{s.quantity} {s.unit}</span></div>
                 <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
@@ -266,7 +266,7 @@ const Stock = () => {
             <tbody>
               {stocks.map(s => (
                 <tr key={s._id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{s.projectId?.name || s.projectId}</td>
+                  <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
                   <td className="px-4 py-3">{s.materialName}</td>
                   <td className="px-4 py-3 font-bold">{s.quantity}</td>
                   <td className="px-4 py-3">{s.unit}</td>

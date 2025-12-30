@@ -37,7 +37,10 @@ const SMTransfer = () => {
     }
   };
 
-  const projectName = (id) => projects.find(p => p._id === id)?.name || id || '-';
+  const projectName = (projectData) => {
+    if (typeof projectData === 'object' && projectData?.name) return projectData.name;
+    return projects.find(p => p._id === projectData)?.name || projectData || '-';
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();

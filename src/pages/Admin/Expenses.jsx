@@ -238,7 +238,7 @@ const Expenses = () => {
             <div key={e._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{e.name}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {e.projectId}</div>
+                <div><span className="font-medium">Project:</span> {typeof e.projectId === 'object' ? e.projectId?.name : e.projectId}</div>
                 <div><span className="font-medium">Amount:</span> <span className="text-red-600 font-bold">₹{e.amount?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Category:</span> <span className="capitalize">{e.category || 'N/A'}</span></div>
                 <div><span className="font-medium">Voucher:</span> {e.voucherNumber || 'N/A'}</div>
@@ -271,7 +271,7 @@ const Expenses = () => {
             <tbody>
               {filteredExpenses.map(e => (
                 <tr key={e._id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{e.projectId}</td>
+                  <td className="px-4 py-3">{typeof e.projectId === 'object' ? e.projectId?.name : e.projectId}</td>
                   <td className="px-4 py-3">{e.name}</td>
                   <td className="px-4 py-3 capitalize">{e.category || 'N/A'}</td>
                   <td className="px-4 py-3 font-bold text-red-600">₹{e.amount?.toLocaleString()}</td>

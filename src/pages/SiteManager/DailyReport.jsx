@@ -99,7 +99,7 @@ const DailyReport = () => {
           {reports.map(r => (
             <div key={r._id} className="p-4 border-b border-gray-200 last:border-b-0">
               <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 mb-2">
-                <span className="font-semibold text-gray-900 capitalize">{r.reportType} Report - {r.projectId}</span>
+                <span className="font-semibold text-gray-900 capitalize">{r.reportType} Report - {typeof r.projectId === 'object' ? r.projectId?.name : r.projectId}</span>
                 <span className="text-gray-600 text-sm">{new Date(r.createdAt).toLocaleString()}</span>
               </div>
               <p className="text-gray-700">{r.description}</p>

@@ -101,7 +101,7 @@ const Gallery = () => {
                 <span className="text-4xl md:text-5xl">📷</span>
               </div>
               <div className="p-3">
-                <p className="text-xs text-gray-600 truncate">{g.projectId}</p>
+                <p className="text-xs text-gray-600 truncate">{typeof g.projectId === 'object' ? g.projectId?.name : g.projectId}</p>
                 <p className="text-xs text-gray-400 mt-1">{new Date(g.createdAt).toLocaleDateString()}</p>
               </div>
             </div>

@@ -138,7 +138,7 @@ const LabourAttendance = () => {
                   <tr key={a._id} className="border-b border-gray-100">
                     <td className="px-4 py-2">{a.date}</td>
                     <td className="px-4 py-2">{a.labourName}</td>
-                    <td className="px-4 py-2">{a.projectId}</td>
+                    <td className="px-4 py-2">{typeof a.projectId === 'object' ? a.projectId?.name : a.projectId}</td>
                     <td className="px-4 py-2 capitalize">{a.status || 'present'}</td>
                     <td className="px-4 py-2">{new Date(a.time).toLocaleTimeString()}</td>
                     <td className="px-4 py-2">
