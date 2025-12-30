@@ -72,7 +72,7 @@ const Gallery = () => {
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">Select Project</label>
           <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="w-full md:max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
           </select>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -96,7 +96,7 @@ const Gallery = () => {
         <h2 className="text-xl font-bold text-gray-900 mb-4">Gallery Images</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {gallery.map(g => (
-            <div key={g.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+            <div key={g._id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
               <div className="h-32 md:h-40 bg-gray-100 flex items-center justify-center">
                 <span className="text-4xl md:text-5xl">📷</span>
               </div>

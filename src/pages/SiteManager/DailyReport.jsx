@@ -64,7 +64,7 @@ const DailyReport = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
             <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
             </select>
           </div>
           <div>
@@ -97,7 +97,7 @@ const DailyReport = () => {
         <h2 className="text-xl font-bold text-gray-900 mb-4">Report History</h2>
         <div className="space-y-3">
           {reports.map(r => (
-            <div key={r.id} className="p-4 border-b border-gray-200 last:border-b-0">
+            <div key={r._id} className="p-4 border-b border-gray-200 last:border-b-0">
               <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 mb-2">
                 <span className="font-semibold text-gray-900 capitalize">{r.reportType} Report - {r.projectId}</span>
                 <span className="text-gray-600 text-sm">{new Date(r.createdAt).toLocaleString()}</span>

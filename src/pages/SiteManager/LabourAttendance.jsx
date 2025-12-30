@@ -82,7 +82,7 @@ const LabourAttendance = () => {
 
         <div className="divide-y divide-gray-200">
           {labours.map((labour, idx) => (
-            <div key={labour.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 px-4 py-4 items-center">
+            <div key={labour._id} className="grid grid-cols-1 md:grid-cols-12 gap-3 px-4 py-4 items-center">
               <div className="md:col-span-1 text-sm font-semibold text-gray-700 text-center md:text-left">{idx + 1}</div>
               <div className="md:col-span-6">
                 <div className="text-base font-bold text-gray-900">{labour.name}</div>
@@ -90,8 +90,8 @@ const LabourAttendance = () => {
               </div>
               <div className="md:col-span-3">
                 <select
-                  value={statusMap[labour.id] || 'present'}
-                  onChange={(e) => setStatusMap(prev => ({ ...prev, [labour.id]: e.target.value }))}
+                  value={statusMap[labour._id] || 'present'}
+                  onChange={(e) => setStatusMap(prev => ({ ...prev, [labour._id]: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="present">Present</option>

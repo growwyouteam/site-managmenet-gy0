@@ -30,7 +30,7 @@ const Users = () => {
     e.preventDefault();
     try {
       if (editingUser) {
-        const response = await api.put(`/admin/users/${editingUser.id}`, formData);
+        const response = await api.put(`/admin/users/${editingUser._id}`, formData);
         if (response.data.success) {
           showToast('User updated successfully', 'success');
           setEditingUser(null);
@@ -196,7 +196,7 @@ const Users = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {users.map(u => (
-            <div key={u.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={u._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{u.name}</div>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">User ID:</span> <span className="font-mono text-xs">{u.userId || 'N/A'}</span></div>
@@ -252,7 +252,7 @@ const Users = () => {
             </thead>
             <tbody>
               {users.map(u => (
-                <tr key={u.id} className="border-b border-gray-200 hover:bg-gray-50">
+                <tr key={u._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs">{u.userId || 'N/A'}</td>
                   <td className="px-4 py-3 font-medium">{u.name}</td>
                   <td className="px-4 py-3">{u.email}</td>

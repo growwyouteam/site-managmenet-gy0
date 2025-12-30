@@ -40,10 +40,10 @@ const SMNotifications = () => {
           <div className="divide-y divide-gray-200">
             {notifications.map(n => (
               <div
-                key={n.id}
+                key={n._id}
                 className={`p-4 md:p-5 cursor-pointer hover:bg-gray-50 transition-colors ${n.read ? 'bg-white' : 'bg-blue-50'
                   }`}
-                onClick={() => !n.read && markAsRead(n.id)}
+                onClick={() => !n.read && markAsRead(n._id)}
               >
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
                   <div className="flex flex-wrap gap-2">

@@ -98,7 +98,7 @@ const Transfer = () => {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select Labour</option>
-                  {labours.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  {labours.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
                 </select>
               </div>
             )}
@@ -111,7 +111,7 @@ const Transfer = () => {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">From Project</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div>
@@ -123,7 +123,7 @@ const Transfer = () => {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">To Project</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
           </div>
@@ -139,7 +139,7 @@ const Transfer = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {transfers.map(t => (
-            <div key={t.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={t._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2 capitalize">{t.type}</div>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">From:</span> {t.fromProject}</div>
@@ -165,7 +165,7 @@ const Transfer = () => {
             </thead>
             <tbody>
               {transfers.map(t => (
-                <tr key={t.id} className="border-b border-gray-200 hover:bg-gray-50">
+                <tr key={t._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 capitalize">{t.type}</td>
                   <td className="px-4 py-3">{t.fromProject}</td>
                   <td className="px-4 py-3">{t.toProject}</td>

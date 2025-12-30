@@ -70,7 +70,7 @@ const Notifications = () => {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Broadcast to All Site Managers</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
             </select>
           </div>
           <div className="mb-4">
@@ -105,7 +105,7 @@ const Notifications = () => {
         <h2 className="text-xl font-bold text-gray-900 mb-4">Notification History</h2>
         <div className="space-y-3">
           {notifications.map(n => (
-            <div key={n.id} className="p-4 border-b border-gray-200 last:border-b-0 flex flex-col md:flex-row md:justify-between md:items-start gap-3">
+            <div key={n._id} className="p-4 border-b border-gray-200 last:border-b-0 flex flex-col md:flex-row md:justify-between md:items-start gap-3">
               <div className="flex-1">
                 <p className="font-semibold text-gray-900 mb-2">{n.message}</p>
                 <p className="text-sm text-gray-600">
