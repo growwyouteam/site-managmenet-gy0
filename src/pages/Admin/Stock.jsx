@@ -5,10 +5,11 @@ import api from '../../services/api';
 const Stock = () => {
   const [stocks, setStocks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     projectId: '',
-    vendorName: '',
+    vendorId: '',
     materialName: '',
     unit: 'kg',
     quantity: '',
@@ -25,9 +26,10 @@ const Stock = () => {
 
   const fetchData = async () => {
     try {
-      const [stocksRes, projectsRes] = await Promise.all([
+      const [stocksRes, projectsRes, vendorsRes] = await Promise.all([
         api.get('/admin/stocks'),
-        api.get('/admin/projects')
+        api.get('/admin/projects'),
+        api.get('/admin/vendors')
       ]);
 
       if (stocksRes.data.success) {
@@ -38,6 +40,13 @@ const Stock = () => {
         setProjects(projectsRes.data.data);
         if (projectsRes.data.data.length > 0) {
           setFormData(prev => ({ ...prev, projectId: projectsRes.data.data[0]._id }));
+        }
+      }
+
+      if (vendorsRes.data.success) {
+        setVendors(vendorsRes.data.data);
+        if (vendorsRes.data.data.length > 0) {
+          setFormData(prev => ({ ...prev, vendorId: vendorsRes.data.data[0]._id }));
         }
       }
     } catch (error) {
@@ -59,7 +68,7 @@ const Stock = () => {
         setShowForm(false);
         setFormData({
           projectId: projects[0]?._id || '',
-          vendorName: '',
+          vendorId: vendors[0]?._id || '',
           materialName: '',
           unit: 'kg',
           quantity: '',
@@ -119,19 +128,19 @@ const Stock = () => {
                 required
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Vendor</label>
-              <input
-                type="text"
-                value={formData.vendorName}
-                onChange={(e) => setFormData({ ...formData, vendorName: e.target.value })}
-                placeholder="Vendor name"
+              <select
+                value={formData.vendorId}
+                onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
                 required
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                {vendors.map(v => <option key={v._id} value={v._id}>{v.name}</option>)}
+              </select>
             </div>
           </div>
           <div className="mb-4">
@@ -214,21 +223,21 @@ const Stock = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {stocks.map(s => (
-            <div key={s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={s._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {s.projectId}</div>
+                <div><span className="font-medium">Project:</span> {s.projectId?.name || s.projectId}</div>
                 <div><span className="font-medium">Quantity:</span> <span className="font-bold">{s.quantity} {s.unit}</span></div>
                 <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Vendor:</span> {s.vendorName || 'N/A'}</div>
+                <div><span className="font-medium">Vendor:</span> {s.vendorId?.name || 'N/A'}</div>
                 <div><span className="font-medium">Date:</span> {new Date(s.createdAt).toLocaleDateString()}</div>
               </div>
               {s.photo && (
                 <img src={s.photo} alt="Stock" className="mt-2 h-20 w-full object-cover rounded border" />
               )}
               <button
-                onClick={() => handleDelete(s.id)}
+                onClick={() => handleDelete(s._id)}
                 className="mt-3 w-full px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
               >
                 Delete
@@ -256,21 +265,21 @@ const Stock = () => {
             </thead>
             <tbody>
               {stocks.map(s => (
-                <tr key={s.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{s.projectId}</td>
+                <tr key={s._id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="px-4 py-3">{s.projectId?.name || s.projectId}</td>
                   <td className="px-4 py-3">{s.materialName}</td>
                   <td className="px-4 py-3 font-bold">{s.quantity}</td>
                   <td className="px-4 py-3">{s.unit}</td>
                   <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
                   <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
-                  <td className="px-4 py-3">{s.vendorName || 'N/A'}</td>
+                  <td className="px-4 py-3">{s.vendorId?.name || 'N/A'}</td>
                   <td className="px-4 py-3">
                     {s.photo ? <img src={s.photo} alt="Stock" className="h-12 w-12 object-cover rounded border" /> : '—'}
                   </td>
                   <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => handleDelete(s.id)}
+                      onClick={() => handleDelete(s._id)}
                       className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
                     >
                       Delete
