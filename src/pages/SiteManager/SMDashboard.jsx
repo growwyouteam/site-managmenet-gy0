@@ -86,7 +86,7 @@ const SMDashboard = () => {
         {data?.assignedProjects && data.assignedProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.assignedProjects.map(p => (
-              <div key={p.id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+              <div key={p._id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
                 <h3 className="font-bold text-gray-900 mb-2">{p.name}</h3>
                 <p className="text-gray-600 text-sm mb-1">📍 {p.location}</p>
                 <p className="text-gray-600 text-sm">Budget: <span className="font-bold text-green-600">₹{p.budget?.toLocaleString()}</span></p>

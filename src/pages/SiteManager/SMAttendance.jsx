@@ -72,7 +72,7 @@ const SMAttendance = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
             <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
             </select>
           </div>
         </div>
@@ -100,10 +100,10 @@ const SMAttendance = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {attendance.map(a => (
-            <div key={a.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={a._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{a.date}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {a.projectId}</div>
+                <div><span className="font-medium">Project:</span> {a.projectId?.name || a.projectId}</div>
                 <div><span className="font-medium">Time:</span> {new Date(a.time).toLocaleTimeString()}</div>
                 <div><span className="font-medium">Remarks:</span> {a.remarks || '-'}</div>
               </div>
@@ -124,9 +124,9 @@ const SMAttendance = () => {
             </thead>
             <tbody>
               {attendance.map(a => (
-                <tr key={a.id} className="border-b border-gray-200 hover:bg-gray-50">
+                <tr key={a._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{a.date}</td>
-                  <td className="px-4 py-3">{a.projectId}</td>
+                  <td className="px-4 py-3">{a.projectId?.name || a.projectId}</td>
                   <td className="px-4 py-3">{new Date(a.time).toLocaleTimeString()}</td>
                   <td className="px-4 py-3">{a.remarks || '-'}</td>
                 </tr>

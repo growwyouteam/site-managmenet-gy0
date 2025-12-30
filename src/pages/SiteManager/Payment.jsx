@@ -70,7 +70,7 @@ const Payment = () => {
               }} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select Labour</option>
                 {labours.map(l => (
-                  <option key={l.id} value={l.id}>{l.name} - Pending: ₹{l.pendingPayout || 0}</option>
+                  <option key={l._id} value={l._id}>{l.name} - Pending: ₹{l.pendingPayout || 0}</option>
                 ))}
               </select>
             </div>
@@ -112,7 +112,7 @@ const Payment = () => {
         {/* Mobile View */}
         <div className="block lg:hidden space-y-3">
           {payments.map(p => (
-            <div key={p.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={p._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{p.labourName}</div>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">Amount:</span> ₹{p.amount?.toLocaleString()}</div>
@@ -140,7 +140,7 @@ const Payment = () => {
             </thead>
             <tbody>
               {payments.map(p => (
-                <tr key={p.id} className="border-b border-gray-200 hover:bg-gray-50">
+                <tr key={p._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{p.labourName}</td>
                   <td className="px-4 py-3">₹{p.amount?.toLocaleString()}</td>
                   <td className="px-4 py-3 text-red-600">₹{p.deduction?.toLocaleString()}</td>

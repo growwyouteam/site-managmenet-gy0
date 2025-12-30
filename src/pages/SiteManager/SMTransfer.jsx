@@ -82,7 +82,7 @@ const SMTransfer = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Labour</label>
                 <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Select Labour</option>
-                  {labours.map(l => <option key={l.id} value={l.id}>{l.name} - {l.designation}</option>)}
+                  {labours.map(l => <option key={l._id} value={l._id}>{l.name} - {l.designation}</option>)}
                 </select>
               </div>
             )}
@@ -90,14 +90,14 @@ const SMTransfer = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">From Project</label>
               <select value={formData.fromProject} onChange={(e) => setFormData({ ...formData, fromProject: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select Project</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">To Project</label>
               <select value={formData.toProject} onChange={(e) => setFormData({ ...formData, toProject: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select Project</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
@@ -117,7 +117,7 @@ const SMTransfer = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {transfers.map(t => (
-            <div key={t.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={t._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2 capitalize">{t.type}</div>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">From:</span> {projectName(t.fromProject)}</div>
@@ -148,7 +148,7 @@ const SMTransfer = () => {
             </thead>
             <tbody>
               {transfers.map(t => (
-                <tr key={t.id} className="border-b border-gray-200 hover:bg-gray-50">
+                <tr key={t._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 capitalize font-medium">{t.type}</td>
                   <td className="px-4 py-3">{projectName(t.fromProject)}</td>
                   <td className="px-4 py-3">{projectName(t.toProject)}</td>

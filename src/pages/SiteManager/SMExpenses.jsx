@@ -75,7 +75,7 @@ const SMExpenses = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
               <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div>
@@ -112,10 +112,10 @@ const SMExpenses = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
           {expenses.map(e => (
-            <div key={e.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={e._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{e.name}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {e.projectId}</div>
+                <div><span className="font-medium">Project:</span> {e.projectId?.name || e.projectId}</div>
                 <div><span className="font-medium">Amount:</span> <span className="font-bold text-red-600">₹{e.amount?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Voucher:</span> {e.voucherNumber || 'N/A'}</div>
                 <div><span className="font-medium">Date:</span> {new Date(e.createdAt).toLocaleDateString()}</div>
@@ -138,8 +138,8 @@ const SMExpenses = () => {
             </thead>
             <tbody>
               {expenses.map(e => (
-                <tr key={e.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{e.projectId}</td>
+                <tr key={e._id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="px-4 py-3">{e.projectId?.name || e.projectId}</td>
                   <td className="px-4 py-3 font-medium">{e.name}</td>
                   <td className="px-4 py-3 font-bold text-red-600">₹{e.amount?.toLocaleString()}</td>
                   <td className="px-4 py-3">{e.voucherNumber || 'N/A'}</td>
