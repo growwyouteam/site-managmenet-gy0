@@ -24,22 +24,36 @@ const ProjectDetail = () => {
         return;
       }
 
-      const response = await api.get(`/admin/projects/${id}`);
+      // Make all API calls in parallel for better performance
+      const [projectResponse, stocksResponse, machinesResponse] = await Promise.all([
+        api.get(`/admin/projects/${id}`),
+        api.get('/admin/stocks'),
+        api.get('/admin/machines')
+      ]);
 
-      if (!response.data.success) {
+      if (!projectResponse.data.success) {
         setData(null);
         setLoading(false);
-        showToast(response.data.error || 'Failed to fetch project details', 'error');
+        showToast(projectResponse.data.error || 'Failed to fetch project details', 'error');
         return;
       }
 
-      const projectData = response.data.data;
+      const projectData = projectResponse.data.data;
+
+      // Filter stocks and machines for this project
+      const projectStocks = stocksResponse.data.success
+        ? stocksResponse.data.data.filter(stock => stock.projectId === id)
+        : [];
+
+      const projectMachines = machinesResponse.data.success
+        ? machinesResponse.data.data.filter(machine => machine.projectId === id)
+        : [];
 
       setData({
         project: projectData.project,
         expenses: projectData.expenses || [],
-        stocks: [],
-        machines: [],
+        stocks: projectStocks,
+        machines: projectMachines,
         labours: projectData.labours || []
       });
       setLoading(false);
@@ -99,17 +113,18 @@ const ProjectDetail = () => {
 
       {/* Active Machines Section */}
       <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Active Machines</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Active Machines ({data.machines?.length || 0})</h2>
         {data.machines && data.machines.length > 0 ? (
           <div className="space-y-3">
             {data.machines.map(machine => (
-              <div key={machine.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div key={machine._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex justify-between items-start flex-wrap gap-2">
                   <div>
                     <h3 className="font-bold text-gray-900">{machine.name}</h3>
                     <p className="text-sm text-gray-600 mt-1">
                       {machine.model && `Model: ${machine.model}`}
                       {machine.plateNumber && ` | Plate: ${machine.plateNumber}`}
+                      {machine.category && ` | Category: ${machine.category}`}
                     </p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${machine.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
@@ -117,11 +132,82 @@ const ProjectDetail = () => {
                     {machine.status}
                   </span>
                 </div>
+                <div className="mt-2 text-sm text-gray-600">
+                  Quantity: {machine.quantity}
+                  {machine.assignedAsRental && (
+                    <span className="ml-3 text-purple-600 font-semibold">Rental: ₹{machine.assignedRentalPerDay}/day</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         ) : (
           <p className="text-gray-400">No machines assigned to this project</p>
+        )}
+      </div>
+
+      {/* Stock Items Section */}
+      <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Stock Items ({data.stocks?.length || 0})</h2>
+        {data.stocks && data.stocks.length > 0 ? (
+          <div className="space-y-3">
+            {data.stocks.map(stock => (
+              <div key={stock._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-gray-900">{stock.materialName}</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {stock.vendorId?.name && `Vendor: ${stock.vendorId.name}`}
+                      {stock.remarks && ` | Remarks: ${stock.remarks}`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-600">₹{stock.totalPrice?.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">{stock.quantity} {stock.unit} × ₹{stock.unitPrice}</p>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Added: {new Date(stock.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-400">No stock items for this project</p>
+        )}
+      </div>
+
+      {/* Labours Section */}
+      <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Labours ({data.labours?.length || 0})</h2>
+        {data.labours && data.labours.length > 0 ? (
+          <div className="space-y-3">
+            {data.labours.map(labour => (
+              <div key={labour._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-gray-900">{labour.name}</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {labour.designation && `Designation: ${labour.designation}`}
+                      {labour.phone && ` | Phone: ${labour.phone}`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-blue-600">₹{labour.dailyWage}/day</p>
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${labour.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                      {labour.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Enrolled: {new Date(labour.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-400">No labours assigned to this project</p>
         )}
       </div>
 

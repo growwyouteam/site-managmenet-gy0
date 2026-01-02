@@ -29,6 +29,7 @@ const MachineCategory = () => {
     perDayExpense: 0
   });
   const [editingMachine, setEditingMachine] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchMachines();
@@ -40,30 +41,24 @@ const MachineCategory = () => {
     try {
       const response = await api.get('/admin/machines');
       if (response.data.success) {
-        // Populate project information
-        const machinesWithProjects = await Promise.all(
-          response.data.data
-            .filter(m => m.category === category)
-            .map(async (machine) => {
-              if (machine.projectId && isValidObjectId(machine.projectId)) {
-                try {
-                  const projectRes = await api.get(`/admin/projects/${machine.projectId}`);
-                  if (projectRes.data.success) {
-                    machine.projectName = projectRes.data.data.name;
-                    machine.projectLocation = projectRes.data.data.location;
-                  }
-                } catch (error) {
-                  console.error('Error fetching project:', error);
-                  machine.projectName = 'Unknown Project';
-                  machine.projectLocation = '-';
-                }
-              } else {
-                machine.projectName = 'Not Assigned';
-                machine.projectLocation = '-';
-              }
-              return machine;
-            })
-        );
+        // Filter machines by category and add project information from populated data
+        const machinesWithProjects = response.data.data
+          .filter(m => m.category === category)
+          .map((machine) => {
+            if (machine.projectId && machine.projectId.name) {
+              return {
+                ...machine,
+                projectName: machine.projectId.name,
+                projectLocation: machine.projectId.location
+              };
+            } else {
+              return {
+                ...machine,
+                projectName: 'Not Assigned',
+                projectLocation: '-'
+              };
+            }
+          });
         setMachines(machinesWithProjects);
       }
     } catch (error) {
@@ -113,6 +108,7 @@ const MachineCategory = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const newMachine = {
         ...formData,
@@ -131,6 +127,8 @@ const MachineCategory = () => {
     } catch (error) {
       showToast(error.response?.data?.error || `Failed to add ${isConsumable ? 'item' : 'machine'}`, 'error');
       console.error('Error adding machine:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -162,6 +160,7 @@ const MachineCategory = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const updatedMachine = {
         ...formData,
@@ -181,6 +180,8 @@ const MachineCategory = () => {
     } catch (error) {
       showToast(error.response?.data?.error || `Failed to update ${isConsumable ? 'item' : 'machine'}`, 'error');
       console.error('Error updating machine:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -436,8 +437,22 @@ const MachineCategory = () => {
               </div>
             )}
           </div>
-          <button type="submit" className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            {editingMachine ? `Update ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}` : `Add ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}`}
+          <button
+            type="submit"
+            className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                {editingMachine ? `Updating ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}...` : `Adding ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}...`}
+              </span>
+            ) : (
+              editingMachine ? `Update ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}` : `Add ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}`
+            )}
           </button>
         </form>
       )}

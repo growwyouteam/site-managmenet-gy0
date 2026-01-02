@@ -24,13 +24,23 @@ const Expenses = () => {
 
   const fetchExpenses = async () => {
     try {
-      const response = await api.get('/admin/expenses');
-      if (response.data.success) {
-        const expenses = response.data.data;
+      console.log('🔄 Fetching expenses data...');
+      const startTime = Date.now();
 
-        const contractorResponse = await api.get('/admin/contractors');
-        if (contractorResponse.data.success) {
-          const contractors = contractorResponse.data.data;
+      // Make all API calls in parallel for better performance
+      const [expensesResponse, contractorsResponse] = await Promise.all([
+        api.get('/admin/expenses'),
+        api.get('/admin/contractors')
+      ]);
+
+      if (expensesResponse.data.success) {
+        const expenses = expensesResponse.data.data;
+
+        // If contractors exist, fetch their payments in parallel
+        if (contractorsResponse.data.success && contractorsResponse.data.data.length > 0) {
+          const contractors = contractorsResponse.data.data;
+
+          // Fetch all contractor payments in parallel
           const contractorPaymentPromises = contractors.map(c =>
             api.get(`/admin/contractors/${c._id}/payments`)
           );
@@ -56,6 +66,8 @@ const Expenses = () => {
         } else {
           setExpenses(expenses);
         }
+
+        console.log(`⚡ Expenses loaded in ${Date.now() - startTime}ms`);
       }
     } catch (error) {
       showToast('Failed to fetch expenses', 'error');
@@ -320,11 +332,11 @@ const Expenses = () => {
                 <div><span className="font-medium">Amount:</span> <span className="text-red-600 font-bold">₹{e.amount?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Category:</span>
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${e.category === 'material' ? 'bg-blue-100 text-blue-800' :
-                      e.category === 'labour' ? 'bg-green-100 text-green-800' :
-                        e.category === 'machinery' ? 'bg-purple-100 text-purple-800' :
-                          e.category === 'transport' ? 'bg-yellow-100 text-yellow-800' :
-                            e.category === 'contractor' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
+                    e.category === 'labour' ? 'bg-green-100 text-green-800' :
+                      e.category === 'machinery' ? 'bg-purple-100 text-purple-800' :
+                        e.category === 'transport' ? 'bg-yellow-100 text-yellow-800' :
+                          e.category === 'contractor' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
                     }`}>
                     {e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'N/A'}
                   </span>

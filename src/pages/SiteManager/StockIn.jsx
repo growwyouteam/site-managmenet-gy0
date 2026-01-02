@@ -5,11 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 
 const StockIn = () => {
   const { user } = useAuth();
-  const baseUrl = user?.role === 'admin' ? '/admin' : '/site';
   const units = ['kg', 'ltr', 'bags', 'pcs', 'meter', 'box', 'ton'];
   const [vendors, setVendors] = useState([]);
   const [projects, setProjects] = useState([]);
   const [stocks, setStocks] = useState([]);
+  const [debugMode, setDebugMode] = useState(false);
   const [formData, setFormData] = useState({ projectId: '', vendorId: '', materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: '', remarks: '' });
 
   useEffect(() => {
@@ -18,10 +18,22 @@ const StockIn = () => {
 
   const fetchData = async () => {
     try {
+      console.log('🔄 Fetching Stock In data...');
+      const startTime = Date.now();
+
       const [vendorsRes, projectsRes, stocksRes] = await Promise.all([
-        api.get(`${baseUrl}/vendors`),
-        api.get(`${baseUrl}/projects`),
-        api.get(`${baseUrl}/stocks`)
+        api.get('/site/vendors').catch(err => {
+          console.warn('⚠️ Failed to fetch vendors:', err.message);
+          return { data: { success: false, data: [] } };
+        }),
+        api.get('/site/projects').catch(err => {
+          console.warn('⚠️ Failed to fetch projects:', err.message);
+          return { data: { success: false, data: [] } };
+        }),
+        api.get('/site/stocks').catch(err => {
+          console.warn('⚠️ Failed to fetch stocks:', err.message);
+          return { data: { success: false, data: [] } };
+        })
       ]);
 
       if (vendorsRes.data.success) {
@@ -29,6 +41,9 @@ const StockIn = () => {
         if (vendorsRes.data.data.length > 0) {
           setFormData(prev => ({ ...prev, vendorId: vendorsRes.data.data[0]._id }));
         }
+      } else {
+        console.warn('⚠️ Vendors API failed:', vendorsRes.data.error);
+        setVendors([]);
       }
 
       if (projectsRes.data.success) {
@@ -36,13 +51,28 @@ const StockIn = () => {
         if (projectsRes.data.data.length > 0) {
           setFormData(prev => ({ ...prev, projectId: projectsRes.data.data[0]._id || projectsRes.data.data[0].id }));
         }
+      } else {
+        console.warn('⚠️ Projects API failed:', projectsRes.data.error);
+        setProjects([]);
       }
 
       if (stocksRes.data.success) {
         setStocks(stocksRes.data.data);
+        console.log(`✅ Loaded ${stocksRes.data.data.length} stocks`);
+      } else {
+        console.warn('⚠️ Stocks API failed:', stocksRes.data.error);
+        setStocks([]);
       }
+
+      console.log(`⚡ Stock In data loaded in ${Date.now() - startTime}ms`);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('❌ Error fetching data:', error);
+      showToast('Failed to load data. Please check your assignments.', 'error');
+
+      // Set empty data to prevent crashes
+      setVendors([]);
+      setProjects([]);
+      setStocks([]);
     }
   };
 
@@ -101,23 +131,99 @@ const StockIn = () => {
     reader.readAsDataURL(file);
   };
 
+  const runDebug = async () => {
+    setDebugMode(true);
+    try {
+      console.log('🔍 StockIn Debug Test...');
+
+      // Test individual endpoints
+      const projectsTest = await api.get('/site/projects');
+      console.log('📋 Projects API Response:', projectsTest.data);
+
+      const vendorsTest = await api.get('/site/vendors');
+      console.log('👥 Vendors API Response:', vendorsTest.data);
+
+      const stocksTest = await api.get('/site/stocks');
+      console.log('📦 Stocks API Response:', stocksTest.data);
+
+      // Check user info
+      const dashboardTest = await api.get('/site/dashboard');
+      console.log('🏠 Dashboard User Info:', {
+        name: dashboardTest.data.data.user?.name,
+        assignedSites: dashboardTest.data.data.user?.assignedSites,
+        assignedProjectsCount: dashboardTest.data.data.assignedProjects?.length
+      });
+
+      showToast('Debug completed! Check console.', 'success');
+    } catch (error) {
+      console.error('❌ Debug Error:', error);
+      showToast('Debug failed! Check console.', 'error');
+    } finally {
+      setDebugMode(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Stock In (Material Receipt)</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Stock In (Material Receipt)</h1>
+        <button
+          onClick={runDebug}
+          disabled={debugMode}
+          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          🔍 {debugMode ? 'Debugging...' : 'Debug'}
+        </button>
+      </div>
+
+      {/* Show warning if no projects assigned */}
+      {projects.length === 0 && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center">
+            <div className="text-yellow-600 text-2xl mr-3">⚠️</div>
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-800">No Projects Assigned</h3>
+              <p className="text-yellow-700 mt-1">
+                You haven't been assigned to any projects yet. Please contact your admin to get project assignments before adding stock.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
-            <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select
+              value={formData.projectId}
+              onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+              required
+              disabled={projects.length === 0}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">Select Project</option>
               {projects.map(p => <option key={p._id || p.id} value={p._id || p.id}>{p.name}</option>)}
             </select>
+            {projects.length === 0 && (
+              <p className="text-xs text-yellow-600 mt-1">No projects available</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Vendor</label>
-            <select value={formData.vendorId} onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select
+              value={formData.vendorId}
+              onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
+              required
+              disabled={vendors.length === 0}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">Select Vendor</option>
               {vendors.map(v => <option key={v._id || v.id} value={v._id || v.id}>{v.name}</option>)}
             </select>
+            {vendors.length === 0 && (
+              <p className="text-xs text-yellow-600 mt-1">No vendors available</p>
+            )}
           </div>
           <div className="md:col-span-2 lg:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">Material Name</label>
