@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../services/api';
+import optimizedApi from '../../services/optimizedApi';
 import { showToast } from '../../components/Toast';
 
 const Dashboard = () => {
@@ -18,9 +18,15 @@ const Dashboard = () => {
 
   const fetchDashboard = async () => {
     try {
-      const response = await api.get('/admin/dashboard');
+      console.log('🚀 Fetching dashboard data with optimization...');
+      const startTime = Date.now();
+
+      // Use optimized dashboard fetch
+      const response = await optimizedApi.getDashboard();
+
       if (response.data.success) {
         setData(response.data.data);
+        console.log(`⚡ Dashboard loaded in ${Date.now() - startTime}ms`);
       }
     } catch (error) {
       showToast('Failed to fetch dashboard data', 'error');
@@ -84,8 +90,8 @@ const Dashboard = () => {
           {data?.projects && data.projects.length > 0 ? (
             data.projects.map(project => (
               <Link
-                key={project.id}
-                to={`/admin/projects/${project.id}`}
+                key={project._id}
+                to={`/admin/projects/${project._id}`}
                 className="p-4 md:p-5 bg-white rounded-lg shadow-sm border border-gray-200 no-underline text-inherit hover:-translate-y-1 hover:shadow-md transition-all duration-200 cursor-pointer"
               >
                 <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">{project.name}</h3>

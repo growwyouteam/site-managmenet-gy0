@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { showToast } from '../../components/Toast';
-import api from '../../services/api';
+import optimizedApi from '../../services/optimizedApi';
+import { usePerformanceMonitor } from '../../utils/performanceMonitor';
+import { debugAuth, testApiCall } from '../../utils/debugAuth';
 
 const Stock = () => {
+  const { startTiming, endTiming } = usePerformanceMonitor('StockComponent');
   const [stocks, setStocks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -17,50 +20,135 @@ const Stock = () => {
     photo: '',
     remarks: ''
   });
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [showDetail, setShowDetail] = useState(false);
+  const [editingStock, setEditingStock] = useState(null);
 
   const units = ['kg', 'ltr', 'bags', 'ft', 'meter', 'ton', 'piece', 'box', 'bundle'];
 
   useEffect(() => {
+    // Debug authentication on component mount
+    debugAuth();
+
+    // Test API call
+    setTimeout(() => {
+      testApiCall();
+    }, 2000);
+
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
-      const [stocksRes, projectsRes, vendorsRes] = await Promise.all([
-        api.get('/admin/stocks'),
-        api.get('/admin/projects'),
-        api.get('/admin/vendors')
-      ]);
+      console.log('🚀 Fetching stock data with optimization...');
+      startTiming();
 
-      if (stocksRes.data.success) {
-        setStocks(stocksRes.data.data);
-      }
+      // Use optimized batch fetch
+      const results = await optimizedApi.fetchStockPageData();
 
-      if (projectsRes.data.success) {
-        setProjects(projectsRes.data.data);
-        if (projectsRes.data.data.length > 0) {
-          setFormData(prev => ({ ...prev, projectId: projectsRes.data.data[0]._id }));
+      const duration = endTiming();
+      console.log(`⚡ Batch fetch completed in ${duration}ms`);
+
+      let hasAnySuccess = false;
+
+      // Process results
+      results.forEach(result => {
+        if (result.success) {
+          hasAnySuccess = true;
+          if (result.url.includes('/stocks')) {
+            setStocks(result.data.data || []);
+            console.log('📦 Stocks loaded:', result.data.data?.length || 0);
+          } else if (result.url.includes('/projects')) {
+            const projects = result.data.data || [];
+            setProjects(projects);
+            if (projects.length > 0) {
+              setFormData(prev => ({ ...prev, projectId: projects[0]._id }));
+            }
+            console.log('🏗️ Projects loaded:', projects.length);
+          } else if (result.url.includes('/vendors')) {
+            const vendors = result.data.data || [];
+            setVendors(vendors);
+            if (vendors.length > 0) {
+              setFormData(prev => ({ ...prev, vendorId: vendors[0]._id }));
+            }
+            console.log('🏪 Vendors loaded:', vendors.length);
+          }
+        } else {
+          console.error(`❌ API failed for ${result.url}:`, result.error);
+
+          // Set empty data for failed requests
+          if (result.url.includes('/stocks')) {
+            setStocks([]);
+            // Show specific message for stocks timeout
+            if (result.error.includes('timeout')) {
+              showToast('Stock data is taking too long to load. Please try again.', 'warning');
+            } else {
+              showToast('Failed to load stock data', 'error');
+            }
+          } else if (result.url.includes('/projects')) {
+            setProjects([]);
+            setFormData(prev => ({ ...prev, projectId: '' }));
+          } else if (result.url.includes('/vendors')) {
+            setVendors([]);
+            setFormData(prev => ({ ...prev, vendorId: '' }));
+          }
         }
-      }
+      });
 
-      if (vendorsRes.data.success) {
-        setVendors(vendorsRes.data.data);
-        if (vendorsRes.data.data.length > 0) {
-          setFormData(prev => ({ ...prev, vendorId: vendorsRes.data.data[0]._id }));
-        }
+      if (hasAnySuccess) {
+        console.log('✅ Partial data fetch completed successfully');
+        showToast('Some data loaded successfully', 'success');
+      } else {
+        console.error('❌ All API requests failed');
+        showToast('Unable to connect to server. Please check your connection.', 'error');
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      showToast('Failed to fetch data', 'error');
+      console.error('❌ Error fetching data:', error);
+
+      // Set empty data on error
+      setStocks([]);
+      setProjects([]);
+      setVendors([]);
+      setFormData(prev => ({ ...prev, projectId: '', vendorId: '' }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validation
+    if (!formData.projectId) {
+      showToast('Please select a project', 'error');
+      return;
+    }
+    if (!formData.vendorId) {
+      showToast('Please select a vendor', 'error');
+      return;
+    }
+    if (!formData.materialName.trim()) {
+      showToast('Please enter material name', 'error');
+      return;
+    }
+    if (!formData.quantity || formData.quantity <= 0) {
+      showToast('Please enter valid quantity', 'error');
+      return;
+    }
+    if (!formData.unitPrice || formData.unitPrice <= 0) {
+      showToast('Please enter valid unit price', 'error');
+      return;
+    }
+    if (!formData.photo) {
+      showToast('Photo is required for stock entry', 'error');
+      return;
+    }
+
     try {
-      const response = await api.post('/admin/stocks', {
+      const response = await optimizedApi.post('/admin/stocks', {
         ...formData,
-        quantity: Number(formData.quantity) || 0,
-        unitPrice: Number(formData.unitPrice) || 0
+        quantity: Number(formData.quantity),
+        unitPrice: Number(formData.unitPrice),
+        totalPrice: Number(formData.quantity) * Number(formData.unitPrice)
       });
 
       if (response.data.success) {
@@ -76,6 +164,8 @@ const Stock = () => {
           photo: '',
           remarks: ''
         });
+        // Invalidate cache and refresh data
+        optimizedApi.invalidateCache('stocks');
         fetchData();
       }
     } catch (error) {
@@ -87,14 +177,71 @@ const Stock = () => {
   const handleDelete = async (id) => {
     if (!confirm('Delete this stock entry?')) return;
     try {
-      const response = await api.delete(`/admin/stocks/${id}`);
+      const response = await optimizedApi.delete(`/admin/stocks/${id}`);
       if (response.data.success) {
         showToast('Stock deleted', 'success');
+        // Invalidate cache and refresh data
+        optimizedApi.invalidateCache('stocks');
         fetchData();
       }
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to delete stock', 'error');
       console.error('Error deleting stock:', error);
+    }
+  };
+
+  const handleEdit = (stock) => {
+    setEditingStock(stock);
+    setFormData({
+      projectId: stock.projectId || '',
+      vendorId: stock.vendorId || '',
+      materialName: stock.materialName,
+      unit: stock.unit,
+      quantity: stock.quantity,
+      unitPrice: stock.unitPrice,
+      photo: stock.photo || '',
+      remarks: stock.remarks || ''
+    });
+    setShowForm(true);
+  };
+
+  const handleViewDetail = (stock) => {
+    setSelectedStock(stock);
+    setShowDetail(true);
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!editingStock) return;
+
+    try {
+      const response = await optimizedApi.put(`/admin/stocks/${editingStock._id}`, {
+        ...formData,
+        quantity: Number(formData.quantity),
+        unitPrice: Number(formData.unitPrice),
+        totalPrice: Number(formData.quantity) * Number(formData.unitPrice)
+      });
+
+      if (response.data.success) {
+        showToast('Stock updated successfully', 'success');
+        setShowForm(false);
+        setEditingStock(null);
+        setFormData({
+          projectId: projects[0]?._id || '',
+          vendorId: vendors[0]?._id || '',
+          materialName: '',
+          unit: 'kg',
+          quantity: '',
+          unitPrice: '',
+          photo: '',
+          remarks: ''
+        });
+        optimizedApi.invalidateCache('stocks');
+        fetchData();
+      }
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to update stock', 'error');
+      console.error('Error updating stock:', error);
     }
   };
 
@@ -109,16 +256,35 @@ const Stock = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Stock Management</h1>
-      <button
-        onClick={() => setShowForm(!showForm)}
-        className="px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-      >
-        {showForm ? 'Cancel' : 'Add Stock'}
-      </button>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Stock Management</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              debugAuth();
+              testApiCall();
+            }}
+            className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium text-sm"
+          >
+            Debug Auth
+          </button>
+          <button
+            onClick={() => fetchData()}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium text-sm"
+          >
+            Refresh Data
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+          >
+            {showForm ? 'Cancel' : 'Add Stock'}
+          </button>
+        </div>
+      </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="mt-5 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+        <form onSubmit={editingStock ? handleUpdate : handleSubmit} className="mt-5 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
@@ -190,15 +356,22 @@ const Stock = () => {
             </div>
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Photo</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Photo *</label>
             <input
               type="file"
               accept="image/*"
               onChange={(e) => handlePhoto(e.target.files?.[0])}
-              className="w-full"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
             />
             {formData.photo && (
-              <img src={formData.photo} alt="Preview" className="mt-2 h-24 w-24 object-cover rounded border" />
+              <div className="mt-2">
+                <img src={formData.photo} alt="Preview" className="h-24 w-24 object-cover rounded border" />
+                <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
+              </div>
+            )}
+            {!formData.photo && (
+              <p className="text-xs text-red-600 mt-1">Photo is required</p>
             )}
           </div>
           <div className="mb-4">
@@ -212,7 +385,7 @@ const Stock = () => {
             />
           </div>
           <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            Add Stock
+            {editingStock ? 'Update Stock' : 'Add Stock'}
           </button>
         </form>
       )}
@@ -222,75 +395,169 @@ const Stock = () => {
 
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
-          {stocks.map(s => (
-            <div key={s._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
-              <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</div>
-                <div><span className="font-medium">Quantity:</span> <span className="font-bold">{s.quantity} {s.unit}</span></div>
-                <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Vendor:</span> {s.vendorId?.name || 'N/A'}</div>
-                <div><span className="font-medium">Date:</span> {new Date(s.createdAt).toLocaleDateString()}</div>
-              </div>
-              {s.photo && (
-                <img src={s.photo} alt="Stock" className="mt-2 h-20 w-full object-cover rounded border" />
-              )}
-              <button
-                onClick={() => handleDelete(s._id)}
-                className="mt-3 w-full px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
-              >
-                Delete
-              </button>
+          {stocks.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <p>No stock records found</p>
+              <p className="text-sm mt-2">Add your first stock entry above</p>
             </div>
-          ))}
+          ) : (
+            stocks.map(s => (
+              <div key={s._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
+                <div className="text-sm space-y-1">
+                  <div><span className="font-medium">Quantity:</span> <span className="font-bold">{s.quantity} {s.unit}</span></div>
+                  <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
+                  <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
+                  {s.remarks && <div><span className="font-medium">Remarks:</span> {s.remarks}</div>}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleViewDetail(s)}
+                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleEdit(s)}
+                    className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(s._id)}
+                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Desktop View */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Photo</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stocks.map(s => (
-                <tr key={s._id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
-                  <td className="px-4 py-3">{s.materialName}</td>
-                  <td className="px-4 py-3 font-bold">{s.quantity}</td>
-                  <td className="px-4 py-3">{s.unit}</td>
-                  <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
-                  <td className="px-4 py-3">{s.vendorId?.name || 'N/A'}</td>
-                  <td className="px-4 py-3">
-                    {s.photo ? <img src={s.photo} alt="Stock" className="h-12 w-12 object-cover rounded border" /> : '—'}
-                  </td>
-                  <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDelete(s._id)}
-                      className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                  </td>
+          {stocks.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <p>No stock records found</p>
+              <p className="text-sm mt-2">Add your first stock entry above</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Photo</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {stocks.map(s => (
+                  <tr key={s._id} className="border-b border-gray-200 hover:bg-gray-50">
+                    <td className="px-4 py-3">{s.materialName}</td>
+                    <td className="px-4 py-3 font-bold">{s.quantity}</td>
+                    <td className="px-4 py-3">{s.unit}</td>
+                    <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      {s.photo ? (
+                        <img src={s.photo} alt="Stock" className="h-12 w-12 object-cover rounded border cursor-pointer"
+                          onClick={() => handleViewDetail(s)} />
+                      ) : (
+                        <span className="text-gray-400 text-xs">No photo</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleViewDetail(s)}
+                          className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => handleEdit(s)}
+                          className="px-3 py-1.5 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s._id)}
+                          className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
+
+      {/* Stock Detail Modal */}
+      {showDetail && selectedStock && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">Stock Details</h2>
+                <button
+                  onClick={() => setShowDetail(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {selectedStock.photo && (
+                  <div className="flex justify-center">
+                    <img src={selectedStock.photo} alt="Stock" className="max-w-full h-64 object-contain rounded border" />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Material Name</label>
+                    <p className="text-lg font-semibold">{selectedStock.materialName}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Quantity</label>
+                    <p className="text-lg font-semibold">{selectedStock.quantity} {selectedStock.unit}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Unit Price</label>
+                    <p className="text-lg font-semibold text-green-600">₹{selectedStock.unitPrice?.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Total Price</label>
+                    <p className="text-lg font-semibold text-green-700">₹{selectedStock.totalPrice?.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Added Date</label>
+                    <p className="text-lg">{new Date(selectedStock.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  {selectedStock.remarks && (
+                    <div className="md:col-span-2">
+                      <label className="text-sm font-medium text-gray-500">Remarks</label>
+                      <p className="text-lg">{selectedStock.remarks}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

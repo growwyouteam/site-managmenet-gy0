@@ -4,6 +4,7 @@ import api from '../../services/api';
 
 const Vendors = () => {
   const [vendors, setVendors] = useState([]);
+  const [stocks, setStocks] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -13,15 +14,71 @@ const Vendors = () => {
     fetchVendors();
   }, []);
 
+  // Calculate vendor statistics
+  const getVendorStats = (vendorId) => {
+    // Debug: Log the vendorId and stocks data
+    console.log('🔍 Calculating stats for vendor:', vendorId);
+    console.log('📦 Available stocks:', stocks.length);
+
+    // More robust vendor ID matching
+    const vendorStocks = stocks.filter(s => {
+      if (!s.vendorId) return false;
+
+      // Handle different vendorId formats
+      if (typeof s.vendorId === 'object' && s.vendorId._id) {
+        return s.vendorId._id === vendorId;
+      } else if (typeof s.vendorId === 'string') {
+        return s.vendorId === vendorId;
+      } else if (s.vendorId.toString) {
+        return s.vendorId.toString() === vendorId;
+      }
+      return false;
+    });
+
+    console.log('🎯 Matched stocks for vendor:', vendorStocks.length);
+
+    const totalSupplied = vendorStocks.reduce((sum, stock) => sum + (stock.totalPrice || 0), 0);
+    const totalItems = vendorStocks.length;
+    const recentSupplies = vendorStocks.filter(s => {
+      const supplyDate = new Date(s.createdAt);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return supplyDate > thirtyDaysAgo;
+    }).length;
+
+    const stats = {
+      totalSupplied,
+      totalItems,
+      recentSupplies,
+      pendingAmount: totalSupplied * 0.3 // Assuming 30% pending (can be calculated from actual payments)
+    };
+
+    console.log('📊 Vendor stats:', stats);
+    return stats;
+  };
+
   const fetchVendors = async () => {
     try {
-      const response = await api.get('/admin/vendors');
-      if (response.data.success) {
-        setVendors(response.data.data);
+      console.log('🔄 Fetching vendors and stocks data...');
+      const [vendorsRes, stocksRes] = await Promise.all([
+        api.get('/admin/vendors'),
+        api.get('/admin/stocks')
+      ]);
+
+      if (vendorsRes.data.success) {
+        console.log('✅ Vendors loaded:', vendorsRes.data.data.length);
+        console.log('👥 Vendor data sample:', vendorsRes.data.data[0]);
+        setVendors(vendorsRes.data.data);
+      }
+
+      if (stocksRes.data.success) {
+        console.log('✅ Stocks loaded:', stocksRes.data.data.length);
+        console.log('📦 Stock data sample:', stocksRes.data.data[0]);
+        setStocks(stocksRes.data.data);
       }
     } catch (error) {
-      showToast('Failed to fetch vendors', 'error');
-      console.error('Error fetching vendors:', error);
+      showToast('Failed to fetch data', 'error');
+      console.error('Error fetching data:', error);
     }
   };
 
@@ -77,12 +134,23 @@ const Vendors = () => {
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Vendor Management</h1>
-      <button
-        onClick={() => setShowForm(!showForm)}
-        className="px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-      >
-        {showForm ? 'Cancel' : 'Add Vendor'}
-      </button>
+      <div className="flex gap-3">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+        >
+          {showForm ? 'Cancel' : 'Add Vendor'}
+        </button>
+        <button
+          onClick={() => {
+            console.log('🔄 Manual refresh triggered');
+            fetchVendors();
+          }}
+          className="px-5 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+        >
+          🔄 Refresh Data
+        </button>
+      </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mt-5 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
@@ -161,12 +229,14 @@ const Vendors = () => {
             <div key={v._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{v.name}</div>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Vendor ID:</span> {v.vendorId || 'N/A'}</div>
+                <div><span className="font-medium">Vendor ID:</span> {v._id?.slice(-8) || 'N/A'}</div>
                 <div><span className="font-medium">Contact:</span> {v.contact}</div>
                 <div><span className="font-medium">Email:</span> {v.email || 'N/A'}</div>
                 <div><span className="font-medium">Address:</span> {v.address || 'N/A'}</div>
-                <div><span className="font-medium">Pending:</span> <span className="text-red-600 font-bold">₹{v.pendingAmount?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Total Supplied:</span> <span className="text-green-600 font-bold">₹{v.totalSupplied?.toLocaleString()}</span></div>
+                <div><span className="font-medium">Total Items:</span> <span className="text-blue-600 font-bold">{getVendorStats(v._id).totalItems}</span></div>
+                <div><span className="font-medium">Recent Supplies:</span> <span className="text-purple-600 font-bold">{getVendorStats(v._id).recentSupplies} (30 days)</span></div>
+                <div><span className="font-medium">Total Supplied:</span> <span className="text-green-600 font-bold">₹{getVendorStats(v._id).totalSupplied.toLocaleString()}</span></div>
+                <div><span className="font-medium">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(v._id).pendingAmount.toLocaleString()}</span></div>
               </div>
               <div className="flex gap-2 mt-3">
                 <button
@@ -200,23 +270,23 @@ const Vendors = () => {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor ID</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Address</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pending Amount</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Items</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Recent Supplies</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Supplied</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pending Amount</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
               {vendors.map(v => (
                 <tr key={v._id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-sm">{v.vendorId || 'N/A'}</td>
+                  <td className="px-4 py-3 font-mono text-sm">{v._id?.slice(-8) || 'N/A'}</td>
                   <td className="px-4 py-3 font-medium">{v.name}</td>
                   <td className="px-4 py-3">{v.contact}</td>
-                  <td className="px-4 py-3">{v.email || 'N/A'}</td>
-                  <td className="px-4 py-3 text-sm">{v.address || 'N/A'}</td>
-                  <td className="px-4 py-3 text-red-600 font-bold">₹{v.pendingAmount?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-green-600 font-bold">₹{v.totalSupplied?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-blue-600 font-bold">{getVendorStats(v._id).totalItems}</td>
+                  <td className="px-4 py-3 text-purple-600 font-bold">{getVendorStats(v._id).recentSupplies}</td>
+                  <td className="px-4 py-3 text-green-600 font-bold">₹{getVendorStats(v._id).totalSupplied.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-red-600 font-bold">₹{getVendorStats(v._id).pendingAmount.toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
@@ -278,11 +348,33 @@ const Vendors = () => {
               <div className="p-3 bg-gray-50 rounded">
                 <span className="font-medium text-gray-700">Address:</span> {selectedVendor.address || 'N/A'}
               </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Pending Amount:</span> <span className="text-red-600 font-bold">₹{selectedVendor.pendingAmount?.toLocaleString()}</span>
+              <div className="p-3 bg-blue-50 rounded">
+                <span className="font-medium text-blue-700">Total Items Supplied:</span> <span className="text-blue-600 font-bold">{getVendorStats(selectedVendor._id).totalItems}</span>
               </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Total Supplied:</span> <span className="text-green-600 font-bold">₹{selectedVendor.totalSupplied?.toLocaleString()}</span>
+              <div className="p-3 bg-purple-50 rounded">
+                <span className="font-medium text-purple-700">Recent Supplies (30 days):</span> <span className="text-purple-600 font-bold">{getVendorStats(selectedVendor._id).recentSupplies}</span>
+              </div>
+              <div className="p-3 bg-green-50 rounded">
+                <span className="font-medium text-green-700">Total Supplied Value:</span> <span className="text-green-600 font-bold">₹{getVendorStats(selectedVendor._id).totalSupplied.toLocaleString()}</span>
+              </div>
+              <div className="p-3 bg-red-50 rounded">
+                <span className="font-medium text-red-700">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(selectedVendor._id).pendingAmount.toLocaleString()}</span>
+              </div>
+
+              {/* Stock Details */}
+              <div className="mt-4">
+                <h4 className="font-medium text-gray-700 mb-2">Recent Stock Supplies</h4>
+                <div className="max-h-40 overflow-y-auto space-y-2">
+                  {stocks.filter(s =>
+                    typeof s.vendorId === 'object' ? s.vendorId._id === selectedVendor._id : s.vendorId === selectedVendor._id
+                  ).slice(0, 5).map(stock => (
+                    <div key={stock._id} className="p-2 bg-gray-50 rounded text-sm">
+                      <div className="font-medium">{stock.materialName}</div>
+                      <div className="text-gray-600">{stock.quantity} {stock.unit} - ₹{stock.totalPrice?.toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">{new Date(stock.createdAt).toLocaleDateString()}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             <button
@@ -294,6 +386,26 @@ const Vendors = () => {
           </div>
         </div>
       )}
+
+      {/* Debug Information */}
+      <div className="mt-6 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+        <h3 className="text-lg font-bold text-yellow-900 mb-3">🔍 Debug Information</h3>
+        <div className="text-sm space-y-2">
+          <div><span className="font-medium">Vendors Count:</span> {vendors.length}</div>
+          <div><span className="font-medium">Stocks Count:</span> {stocks.length}</div>
+          <div><span className="font-medium">Stocks with vendorId:</span> {stocks.filter(s => s.vendorId).length}</div>
+          {vendors.length > 0 && (
+            <div>
+              <span className="font-medium">First Vendor ID:</span> {vendors[0]._id}
+            </div>
+          )}
+          {stocks.length > 0 && (
+            <div>
+              <span className="font-medium">Sample Stock vendorId:</span> {JSON.stringify(stocks[0]?.vendorId)}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

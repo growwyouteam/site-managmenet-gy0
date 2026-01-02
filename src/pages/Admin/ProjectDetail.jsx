@@ -15,11 +15,21 @@ const ProjectDetail = () => {
   const fetchProject = async () => {
     try {
       setLoading(true);
+
+      // Validate ID before making API call
+      if (!id || id === 'undefined') {
+        showToast('Invalid project ID', 'error');
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
       const response = await api.get(`/admin/projects/${id}`);
 
       if (!response.data.success) {
         setData(null);
         setLoading(false);
+        showToast(response.data.error || 'Failed to fetch project details', 'error');
         return;
       }
 

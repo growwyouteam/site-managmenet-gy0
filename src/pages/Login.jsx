@@ -32,8 +32,14 @@ const Login = () => {
 
       if (result.success) {
         showToast('Login successful!', 'success');
-        // Redirect based on role (handled by App.jsx routing)
-        window.location.reload();
+        // Redirect based on role
+        if (result.user?.role === 'admin') {
+          navigate('/admin/dashboard');
+        } else if (result.user?.role === 'sitemanager') {
+          navigate('/site/dashboard');
+        } else {
+          navigate('/dashboard'); // fallback
+        }
       } else {
         showToast(result.error || 'Login failed', 'error');
       }
@@ -105,8 +111,8 @@ const Login = () => {
             type="submit"
             disabled={loading}
             className={`w-full py-3 rounded-lg text-base font-semibold transition-all ${loading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-primary text-dark-darker hover:bg-primary-hover'
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-primary text-dark-darker hover:bg-primary-hover'
               }`}
           >
             {loading ? 'Logging in...' : 'Login'}

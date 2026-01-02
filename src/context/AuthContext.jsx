@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
         const { user, token } = response.data.data;
         setUser(user);
         setToken(token);
-        return { success: true };
+        return { success: true, user };
       }
       return {
         success: false,

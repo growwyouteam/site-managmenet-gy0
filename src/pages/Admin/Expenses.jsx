@@ -7,6 +7,7 @@ const Expenses = () => {
   const [projects, setProjects] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedProject, setSelectedProject] = useState('all');
+  const [editingExpense, setEditingExpense] = useState(null);
   const [formData, setFormData] = useState({
     projectId: '',
     name: '',
@@ -78,14 +79,47 @@ const Expenses = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validation
+    if (!formData.projectId) {
+      showToast('Please select a project', 'error');
+      return;
+    }
+    if (!formData.name.trim()) {
+      showToast('Please enter expense name', 'error');
+      return;
+    }
+    if (!formData.amount || formData.amount <= 0) {
+      showToast('Please enter valid amount', 'error');
+      return;
+    }
+    if (!formData.voucherNumber.trim()) {
+      showToast('Please enter voucher number', 'error');
+      return;
+    }
+
     try {
-      const response = await api.post('/admin/expenses', {
+      const expenseData = {
         ...formData,
-        amount: Number(formData.amount) || 0
-      });
+        amount: Number(formData.amount)
+      };
+
+      let response;
+      if (editingExpense) {
+        response = await api.put(`/admin/expenses/${editingExpense._id}`, expenseData);
+        if (response.data.success) {
+          showToast('Expense updated successfully', 'success');
+        }
+      } else {
+        response = await api.post('/admin/expenses', expenseData);
+        if (response.data.success) {
+          showToast('Expense added successfully', 'success');
+        }
+      }
+
       if (response.data.success) {
-        showToast('Expense added successfully', 'success');
         setShowForm(false);
+        setEditingExpense(null);
         setFormData({
           projectId: projects[0]?._id || '',
           name: '',
@@ -97,8 +131,8 @@ const Expenses = () => {
         fetchExpenses();
       }
     } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to add expense', 'error');
-      console.error('Error adding expense:', error);
+      showToast(error.response?.data?.error || `Failed to ${editingExpense ? 'update' : 'add'} expense`, 'error');
+      console.error('Error saving expense:', error);
     }
   };
 
@@ -118,6 +152,36 @@ const Expenses = () => {
       showToast(error.response?.data?.error || 'Failed to delete expense', 'error');
       console.error('Error deleting expense:', error);
     }
+  };
+
+  const handleEdit = (expense) => {
+    if (expense.isContractorPayment) {
+      showToast('Cannot edit contractor payments', 'error');
+      return;
+    }
+    setEditingExpense(expense);
+    setFormData({
+      projectId: expense.projectId,
+      name: expense.name,
+      amount: expense.amount,
+      voucherNumber: expense.voucherNumber,
+      category: expense.category,
+      remarks: expense.remarks
+    });
+    setShowForm(true);
+  };
+
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingExpense(null);
+    setFormData({
+      projectId: projects[0]?._id || '',
+      name: '',
+      amount: '',
+      voucherNumber: '',
+      category: 'material',
+      remarks: ''
+    });
   };
 
   const filteredExpenses = selectedProject === 'all'
@@ -150,6 +214,9 @@ const Expenses = () => {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {editingExpense ? 'Edit Expense' : 'Add New Expense'}
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
@@ -221,9 +288,20 @@ const Expenses = () => {
               />
             </div>
           </div>
-          <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            Add Expense
-          </button>
+          <div className="flex gap-3">
+            <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
+              {editingExpense ? 'Update Expense' : 'Add Expense'}
+            </button>
+            {editingExpense && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -240,16 +318,36 @@ const Expenses = () => {
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">Project:</span> {typeof e.projectId === 'object' ? e.projectId?.name : e.projectId}</div>
                 <div><span className="font-medium">Amount:</span> <span className="text-red-600 font-bold">₹{e.amount?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Category:</span> <span className="capitalize">{e.category || 'N/A'}</span></div>
+                <div><span className="font-medium">Category:</span>
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${e.category === 'material' ? 'bg-blue-100 text-blue-800' :
+                      e.category === 'labour' ? 'bg-green-100 text-green-800' :
+                        e.category === 'machinery' ? 'bg-purple-100 text-purple-800' :
+                          e.category === 'transport' ? 'bg-yellow-100 text-yellow-800' :
+                            e.category === 'contractor' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                    }`}>
+                    {e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'N/A'}
+                  </span>
+                </div>
                 <div><span className="font-medium">Voucher:</span> {e.voucherNumber || 'N/A'}</div>
                 <div><span className="font-medium">Date:</span> {new Date(e.createdAt).toLocaleDateString()}</div>
               </div>
-              <button
-                onClick={() => alert('Edit coming soon')}
-                className="mt-3 w-full px-3 py-2 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
-              >
-                Edit
-              </button>
+              <div className="mt-3 flex gap-2">
+                {!e.isContractorPayment && (
+                  <button
+                    onClick={() => handleEdit(e)}
+                    className="flex-1 px-3 py-2 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(e._id, e.isContractorPayment)}
+                  className="flex-1 px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
+                >
+                  🗑️ Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

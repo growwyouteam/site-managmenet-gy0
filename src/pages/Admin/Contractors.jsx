@@ -10,6 +10,7 @@ const Contractors = () => {
     const [editingContractor, setEditingContractor] = useState(null);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [selectedContractor, setSelectedContractor] = useState(null);
+    const [contractorStats, setContractorStats] = useState({});
     const [formData, setFormData] = useState({
         name: '',
         mobile: '',
@@ -32,9 +33,58 @@ const Contractors = () => {
 
     const fetchContractors = async () => {
         try {
+            console.log('🔄 Fetching contractors data...');
             const response = await api.get('/admin/contractors');
             if (response.data.success) {
-                setContractors(response.data.data);
+                const contractorsData = response.data.data;
+                console.log('✅ Contractors loaded:', contractorsData.length);
+                setContractors(contractorsData);
+
+                // Calculate stats for each contractor
+                const statsPromises = contractorsData.map(async (contractor) => {
+                    const [paymentsRes, machinesRes] = await Promise.all([
+                        api.get(`/admin/contractors/${contractor._id}/payments`),
+                        api.get('/admin/machines')
+                    ]);
+
+                    const payments = paymentsRes.data.success ? paymentsRes.data.data : [];
+                    const machines = machinesRes.data.success ? machinesRes.data.data : [];
+
+                    const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                    const rentedMachines = machines.filter(m => m.assignedToContractor === contractor._id && m.assignedAsRental);
+                    const totalRentCost = rentedMachines.reduce((sum, m) => sum + (m.assignedRentalPerDay || 0), 0);
+                    const rentPayments = payments.filter(p => p.rentDeducted).reduce((sum, p) => sum + (p.machineRent || 0), 0);
+
+                    // Calculate pending amount correctly
+                    // Total rent owed = totalRentCost
+                    // Rent already paid = rentPayments
+                    // Pending rent = totalRentCost - rentPayments
+                    const pendingRent = Math.max(0, totalRentCost - rentPayments);
+
+                    console.log(`🔍 Contractor ${contractor.name}:`);
+                    console.log(`  - Total Paid: ₹${totalPaid}`);
+                    console.log(`  - Total Rent Cost: ₹${totalRentCost}`);
+                    console.log(`  - Rent Payments: ₹${rentPayments}`);
+                    console.log(`  - Pending Amount: ₹${pendingRent}`);
+                    console.log(`  - Rented Machines: ${rentedMachines.length}`);
+
+                    return {
+                        contractorId: contractor._id,
+                        totalPaid,
+                        totalRentCost,
+                        rentPayments,
+                        pendingAmount: pendingRent,
+                        rentedMachinesCount: rentedMachines.length
+                    };
+                });
+
+                const stats = await Promise.all(statsPromises);
+                const statsMap = stats.reduce((acc, stat) => {
+                    acc[stat.contractorId] = stat;
+                    return acc;
+                }, {});
+
+                setContractorStats(statsMap);
             }
         } catch (error) {
             showToast('Failed to fetch contractors', 'error');
@@ -313,13 +363,28 @@ const Contractors = () => {
                 {/* Mobile View */}
                 <div className="block md:hidden space-y-3">
                     {contractors.map(contractor => (
-                        <div key={contractor.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div key={contractor._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                             <div className="font-bold text-gray-900 mb-2">{contractor.name}</div>
                             <div className="text-sm space-y-1 mb-3">
                                 <div><span className="font-medium">Mobile:</span> {contractor.mobile}</div>
                                 <div><span className="font-medium">Address:</span> {contractor.address}</div>
                                 <div><span className="font-medium">Distance:</span> {contractor.distanceValue} {contractor.distanceUnit}</div>
                                 <div><span className="font-medium">Expense:</span> ₹{contractor.expensePerUnit}/{contractor.distanceUnit}</div>
+                                <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-gray-100 rounded">
+                                    <div>
+                                        <span className="text-xs text-gray-600">Total Paid</span>
+                                        <span className="text-green-600 font-bold">₹{contractorStats[contractor._id]?.totalPaid?.toLocaleString() || 0}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-gray-600">Need to Pay</span>
+                                        <span className="text-red-600 font-bold">₹{contractorStats[contractor._id]?.pendingAmount?.toLocaleString() || 0}</span>
+                                    </div>
+                                </div>
+                                {contractorStats[contractor._id]?.rentedMachinesCount > 0 && (
+                                    <div className="text-xs text-purple-600 mt-1">
+                                        🚜 {contractorStats[contractor._id].rentedMachinesCount} rented machines
+                                    </div>
+                                )}
                             </div>
                             <div className="flex gap-2">
                                 <button
@@ -355,6 +420,8 @@ const Contractors = () => {
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Address</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Distance</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Expense</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Paid</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pending</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
                         </thead>
@@ -366,6 +433,12 @@ const Contractors = () => {
                                     <td className="px-4 py-3">{contractor.address}</td>
                                     <td className="px-4 py-3">{contractor.distanceValue} {contractor.distanceUnit}</td>
                                     <td className="px-4 py-3">₹{contractor.expensePerUnit}/{contractor.distanceUnit}</td>
+                                    <td className="px-4 py-3">
+                                        <span className="text-green-600 font-semibold">₹{contractorStats[contractor._id]?.totalPaid?.toLocaleString() || 0}</span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="text-red-600 font-semibold">₹{contractorStats[contractor._id]?.pendingAmount?.toLocaleString() || 0}</span>
+                                    </td>
                                     <td className="px-4 py-3">
                                         <div className="flex gap-2">
                                             <button

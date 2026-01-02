@@ -8,18 +8,27 @@ import axios from 'axios';
 // Get API base URL from environment variable or use proxy for development
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-// Create axios instance
+// Create axios instance with performance optimizations
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 30000, // 30 second timeout
+  // Enable response compression
+  decompress: true,
+  // Enable keep-alive for better performance
+  keepAlive: true
 });
 
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // You can add auth tokens here if needed
+    // Add auth token if available
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

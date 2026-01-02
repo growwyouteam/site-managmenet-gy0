@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../../services/api';
+import optimizedApi from '../../services/optimizedApi';
 
 const Accounts = () => {
   const [data, setData] = useState(null);
@@ -10,9 +10,14 @@ const Accounts = () => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await api.get('/admin/accounts');
+      console.log('🚀 Fetching accounts data with optimization...');
+      const startTime = Date.now();
+
+      const response = await optimizedApi.getAccounts();
+
       if (response.data.success) {
         setData(response.data.data);
+        console.log(`⚡ Accounts loaded in ${Date.now() - startTime}ms`);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);

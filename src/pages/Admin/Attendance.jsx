@@ -62,7 +62,7 @@ const Attendance = () => {
         {/* Mobile View */}
         <div className="block md:hidden space-y-4">
           {users.map(user => (
-            <div key={user.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={user._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{user.name}</div>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">Email:</span> {user.email}</div>
@@ -92,7 +92,7 @@ const Attendance = () => {
             </thead>
             <tbody>
               {users.map(user => (
-                <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
+                <tr key={user._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3">{user.name}</td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{user.phone || 'N/A'}</td>

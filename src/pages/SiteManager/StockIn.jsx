@@ -48,11 +48,39 @@ const StockIn = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validation
+    if (!formData.projectId) {
+      showToast('Please select a project', 'error');
+      return;
+    }
+    if (!formData.vendorId) {
+      showToast('Please select a vendor', 'error');
+      return;
+    }
+    if (!formData.materialName.trim()) {
+      showToast('Please enter material name', 'error');
+      return;
+    }
+    if (!formData.quantity || formData.quantity <= 0) {
+      showToast('Please enter valid quantity', 'error');
+      return;
+    }
+    if (!formData.unitPrice || formData.unitPrice <= 0) {
+      showToast('Please enter valid unit price', 'error');
+      return;
+    }
+    if (!formData.photo) {
+      showToast('Photo is required for stock entry', 'error');
+      return;
+    }
+
     try {
       const response = await api.post(`${baseUrl}/stock-in`, {
         ...formData,
-        quantity: Number(formData.quantity) || 0,
-        unitPrice: Number(formData.unitPrice) || 0
+        quantity: Number(formData.quantity),
+        unitPrice: Number(formData.unitPrice),
+        totalPrice: Number(formData.quantity) * Number(formData.unitPrice)
       });
 
       if (response.data.success) {
@@ -116,9 +144,23 @@ const StockIn = () => {
             </div>
           </div>
           <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Photo</label>
-            <input type="file" accept="image/*" onChange={(e) => handlePhoto(e.target.files?.[0])} className="w-full" />
-            {formData.photo && <img src={formData.photo} alt="Preview" className="mt-2 h-24 w-24 object-cover rounded border" />}
+            <label className="block text-sm font-medium text-gray-700 mb-2">Photo *</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handlePhoto(e.target.files?.[0])}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            {formData.photo && (
+              <div className="mt-2">
+                <img src={formData.photo} alt="Preview" className="h-24 w-24 object-cover rounded border" />
+                <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
+              </div>
+            )}
+            {!formData.photo && (
+              <p className="text-xs text-red-600 mt-1">Photo is required</p>
+            )}
           </div>
           <div className="md:col-span-2 lg:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
@@ -135,51 +177,78 @@ const StockIn = () => {
 
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
-          {stocks.map(s => (
-            <div key={s._id || s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
-              <div className="text-sm space-y-1">
-                <div><span className="font-medium">Project:</span> {typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</div>
-                <div><span className="font-medium">Quantity:</span> <span className="font-bold text-green-600">{s.quantity} {s.unit}</span></div>
-                <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
-                <div><span className="font-medium">Vendor:</span> {s.vendorId?.name || 'N/A'}</div>
-                <div><span className="font-medium">Date:</span> {new Date(s.createdAt).toLocaleDateString()}</div>
-              </div>
+          {stocks.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <p>No stock records found</p>
+              <p className="text-sm mt-2">Add your first stock entry above</p>
             </div>
-          ))}
+          ) : (
+            stocks.map(s => (
+              <div key={s._id || s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
+                <div className="text-sm space-y-1">
+                  <div><span className="font-medium">Project:</span> {typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</div>
+                  <div><span className="font-medium">Quantity:</span> <span className="font-bold text-green-600">{s.quantity} {s.unit}</span></div>
+                  <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
+                  <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
+                  <div><span className="font-medium">Vendor:</span> {typeof s.vendorId === 'object' ? s.vendorId?.name : s.vendorId}</div>
+                  <div><span className="font-medium">Date:</span> {new Date(s.createdAt).toLocaleDateString()}</div>
+                  {s.photo && (
+                    <div className="mt-2">
+                      <img src={s.photo} alt="Material" className="h-16 w-16 object-cover rounded border" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Desktop View */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stocks.map(s => (
-                <tr key={s._id || s.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
-                  <td className="px-4 py-3 font-medium">{s.materialName}</td>
-                  <td className="px-4 py-3 font-bold text-green-600">{s.quantity}</td>
-                  <td className="px-4 py-3">{s.unit}</td>
-                  <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
-                  <td className="px-4 py-3">{s.vendorId?.name || 'N/A'}</td>
-                  <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
+          {stocks.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <p>No stock records found</p>
+              <p className="text-sm mt-2">Add your first stock entry above</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Photo</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {stocks.map(s => (
+                  <tr key={s._id || s.id} className="border-b border-gray-200 hover:bg-gray-50">
+                    <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
+                    <td className="px-4 py-3 font-medium">{s.materialName}</td>
+                    <td className="px-4 py-3 font-bold text-green-600">{s.quantity}</td>
+                    <td className="px-4 py-3">{s.unit}</td>
+                    <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
+                    <td className="px-4 py-3">{typeof s.vendorId === 'object' ? s.vendorId?.name : s.vendorId}</td>
+                    <td className="px-4 py-3">
+                      {s.photo ? (
+                        <img src={s.photo} alt="Material" className="h-12 w-12 object-cover rounded border" />
+                      ) : (
+                        <span className="text-gray-400 text-xs">No photo</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
