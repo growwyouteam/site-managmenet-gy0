@@ -18,13 +18,26 @@ const SMAttendance = () => {
 
   const fetchData = async () => {
     try {
+      console.log('🔄 Fetching attendance data...');
+      const startTime = Date.now();
+
       const [attendanceRes, projectsRes] = await Promise.all([
-        api.get(`${baseUrl}/attendance`),
-        api.get(`${baseUrl}/projects`)
+        api.get('/site/attendance').catch(err => {
+          console.warn('⚠️ Failed to fetch attendance:', err.message);
+          return { data: { success: false, data: [] } };
+        }),
+        api.get('/site/projects').catch(err => {
+          console.warn('⚠️ Failed to fetch projects:', err.message);
+          return { data: { success: false, data: [] } };
+        })
       ]);
 
       if (attendanceRes.data.success) {
         setAttendance(attendanceRes.data.data);
+        console.log(`✅ Loaded ${attendanceRes.data.data.length} attendance records`);
+      } else {
+        console.warn('⚠️ Attendance API failed:', attendanceRes.data.error);
+        setAttendance([]);
       }
 
       if (projectsRes.data.success) {
@@ -32,9 +45,19 @@ const SMAttendance = () => {
         if (projectsRes.data.data.length > 0) {
           setFormData(prev => ({ ...prev, projectId: projectsRes.data.data[0]._id }));
         }
+      } else {
+        console.warn('⚠️ Projects API failed:', projectsRes.data.error);
+        setProjects([]);
       }
+
+      console.log(`⚡ Attendance data loaded in ${Date.now() - startTime}ms`);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('❌ Error fetching data:', error);
+      showToast('Failed to load data. Please check your assignments.', 'error');
+
+      // Set empty data to prevent crashes
+      setAttendance([]);
+      setProjects([]);
     }
   };
 
@@ -49,12 +72,21 @@ const SMAttendance = () => {
       showToast('Please capture a photo', 'error');
       return;
     }
+    if (!formData.projectId) {
+      showToast('Please select a project', 'error');
+      return;
+    }
     try {
-      const response = await api.post(`${baseUrl}/attendance`, formData);
+      const response = await api.post('/site/attendance', formData);
       if (response.data.success) {
         showToast('Attendance marked successfully', 'success');
-        setFormData({ date: new Date().toISOString().split('T')[0], projectId: projects[0]?._id || '', photo: '', remarks: '' });
-        fetchData();
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          projectId: projects[0]?._id || '',
+          photo: '',
+          remarks: ''
+        });
+        fetchData(); // Refresh attendance list
       }
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to mark attendance', 'error');
@@ -66,17 +98,48 @@ const SMAttendance = () => {
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Mark Attendance</h1>
 
+      {/* Show warning if no projects assigned */}
+      {projects.length === 0 && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center">
+            <div className="text-yellow-600 text-2xl mr-3">⚠️</div>
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-800">No Projects Assigned</h3>
+              <p className="text-yellow-700 mt-1">
+                You haven't been assigned to any projects yet. Please contact your admin to get project assignments before marking attendance.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-            <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              required
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
-            <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select
+              value={formData.projectId}
+              onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+              required
+              disabled={projects.length === 0}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">Select Project</option>
               {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
             </select>
+            {projects.length === 0 && (
+              <p className="text-xs text-yellow-600 mt-1">No projects available</p>
+            )}
           </div>
         </div>
         <div className="mb-4">
