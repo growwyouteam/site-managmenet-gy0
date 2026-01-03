@@ -42,11 +42,11 @@ const ProjectDetail = () => {
 
       // Filter stocks and machines for this project
       const projectStocks = stocksResponse.data.success
-        ? stocksResponse.data.data.filter(stock => stock.projectId === id)
+        ? stocksResponse.data.data.filter(stock => String(stock.projectId) === String(id))
         : [];
 
       const projectMachines = machinesResponse.data.success
-        ? machinesResponse.data.data.filter(machine => machine.projectId === id)
+        ? machinesResponse.data.data.filter(machine => String(machine.projectId) === String(id))
         : [];
 
       setData({

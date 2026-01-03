@@ -41,7 +41,7 @@ const Labour = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post(`${baseUrl}/labours`, { formData });
+      const response = await api.post(`${baseUrl}/labours`, formData);
       if (response.data.success) {
         showToast('Labour enrolled successfully', 'success');
         setShowForm(false);
