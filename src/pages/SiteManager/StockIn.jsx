@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../../services/api';
 import { showToast } from '../../components/Toast';
 import { useAuth } from '../../context/AuthContext';
@@ -10,13 +10,20 @@ const StockIn = () => {
   const [projects, setProjects] = useState([]);
   const [stocks, setStocks] = useState([]);
   const [debugMode, setDebugMode] = useState(false);
-  const [formData, setFormData] = useState({ projectId: '', vendorId: '', materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: '', remarks: '' });
+  const [formData, setFormData] = useState({ projectId: '', vendorId: '', materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: null, remarks: '' });
+  const [photoPreview, setPhotoPreview] = useState('');
+
+  // Optimization States
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAllStocks, setShowAllStocks] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
+    setIsLoading(true);
     try {
       console.log('🔄 Fetching Stock In data...');
       const startTime = Date.now();
@@ -57,7 +64,9 @@ const StockIn = () => {
       }
 
       if (stocksRes.data.success) {
-        setStocks(stocksRes.data.data);
+        // Sort stocks by date descending (newest first)
+        const sortedStocks = stocksRes.data.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setStocks(sortedStocks);
         console.log(`✅ Loaded ${stocksRes.data.data.length} stocks`);
       } else {
         console.warn('⚠️ Stocks API failed:', stocksRes.data.error);
@@ -73,11 +82,14 @@ const StockIn = () => {
       setVendors([]);
       setProjects([]);
       setStocks([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     // Validation
     if (!formData.projectId) {
@@ -106,28 +118,68 @@ const StockIn = () => {
     }
 
     try {
-      const response = await api.post(`${baseUrl}/stock-in`, {
-        ...formData,
-        quantity: Number(formData.quantity),
-        unitPrice: Number(formData.unitPrice),
-        totalPrice: Number(formData.quantity) * Number(formData.unitPrice)
+      setIsSubmitting(true);
+
+      // Create FormData for file upload
+      const submitData = new FormData();
+      submitData.append('projectId', formData.projectId);
+      submitData.append('vendorId', formData.vendorId);
+      submitData.append('materialName', formData.materialName);
+      submitData.append('unit', formData.unit);
+      submitData.append('quantity', formData.quantity);
+      submitData.append('unitPrice', formData.unitPrice);
+      if (formData.photo) {
+        submitData.append('photo', formData.photo);
+      }
+      if (formData.remarks) {
+        submitData.append('remarks', formData.remarks);
+      }
+
+      const response = await api.post('/site/stock-in', submitData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (response.data.success) {
         showToast('Stock added successfully', 'success');
-        setFormData({ projectId: projects[0]?._id || projects[0]?.id || '', vendorId: vendors[0]?._id || vendors[0]?.id || '', materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: '', remarks: '' });
-        fetchData();
+        setFormData(prev => ({
+          ...prev,
+          materialName: '', unit: 'kg', quantity: '', unitPrice: '', photo: null, remarks: ''
+        }));
+        setPhotoPreview('');
+
+        // Optimistic update: Add new stock to list immediately
+        if (response.data.data) {
+          setStocks(prev => [response.data.data, ...prev]);
+        } else {
+          fetchData(); // Fallback
+        }
       }
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to add stock', 'error');
       console.error('Error adding stock:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handlePhoto = (file) => {
-    if (!file) return setFormData(prev => ({ ...prev, photo: '' }));
+    if (!file) {
+      setFormData(prev => ({ ...prev, photo: null }));
+      setPhotoPreview('');
+      return;
+    }
+    // Basic file size validation (e.g. 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('File size too large. Max 10MB.', 'error');
+      return;
+    }
+
+    // Store file object for FormData
+    setFormData(prev => ({ ...prev, photo: file }));
+
+    // Create preview
     const reader = new FileReader();
-    reader.onload = () => setFormData(prev => ({ ...prev, photo: reader.result }));
+    reader.onload = () => setPhotoPreview(reader.result);
     reader.readAsDataURL(file);
   };
 
@@ -162,6 +214,19 @@ const StockIn = () => {
       setDebugMode(false);
     }
   };
+
+  // Performance: Only show first 50 items unless "Show All" is clicked
+  const visibleStocks = useMemo(() => {
+    return showAllStocks ? stocks : stocks.slice(0, 50);
+  }, [stocks, showAllStocks]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -199,7 +264,7 @@ const StockIn = () => {
               value={formData.projectId}
               onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
               required
-              disabled={projects.length === 0}
+              disabled={projects.length === 0 || isSubmitting}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               <option value="">Select Project</option>
@@ -215,7 +280,7 @@ const StockIn = () => {
               value={formData.vendorId}
               onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
               required
-              disabled={vendors.length === 0}
+              disabled={vendors.length === 0 || isSubmitting}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
               <option value="">Select Vendor</option>
@@ -227,21 +292,51 @@ const StockIn = () => {
           </div>
           <div className="md:col-span-2 lg:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">Material Name</label>
-            <input type="text" value={formData.materialName} onChange={(e) => setFormData({ ...formData, materialName: e.target.value })} placeholder="e.g., Cement, Steel Rods" required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="text"
+              value={formData.materialName}
+              onChange={(e) => setFormData({ ...formData, materialName: e.target.value })}
+              placeholder="e.g., Cement, Steel Rods"
+              required
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
-            <select value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select
+              value={formData.unit}
+              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+              required
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
               {units.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-            <input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} placeholder="Quantity" required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+              placeholder="Quantity"
+              required
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (₹)</label>
-            <input type="number" value={formData.unitPrice} onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })} placeholder="Price per unit" required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="number"
+              value={formData.unitPrice}
+              onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+              placeholder="Price per unit"
+              required
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Total Price (₹)</label>
@@ -255,41 +350,67 @@ const StockIn = () => {
               type="file"
               accept="image/*"
               onChange={(e) => handlePhoto(e.target.files?.[0])}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
               required
             />
-            {formData.photo && (
+            {photoPreview && (
               <div className="mt-2">
-                <img src={formData.photo} alt="Preview" className="h-24 w-24 object-cover rounded border" />
-                <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
+                <img src={photoPreview} alt="Preview" className="h-24 w-24 object-cover rounded border" />
+                <p className="text-xs text-green-600 mt-1">✓ Photo selected</p>
               </div>
             )}
-            {!formData.photo && (
+            {!photoPreview && (
               <p className="text-xs text-red-600 mt-1">Photo is required</p>
             )}
           </div>
           <div className="md:col-span-2 lg:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-            <input type="text" value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Optional remarks" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input
+              type="text"
+              value={formData.remarks}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              placeholder="Optional remarks"
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            />
           </div>
         </div>
-        <button type="submit" className="mt-5 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold">
-          Add Stock
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={`mt-5 px-6 py-3 text-white rounded-lg transition-colors font-semibold flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+        >
+          {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+          {isSubmitting ? 'Adding Stock...' : 'Add Stock'}
         </button>
       </form>
 
       <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Stock Records</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Stock Records</h2>
+          <div className="text-sm text-gray-500">
+            Showing {visibleStocks.length} of {stocks.length} records
+            {!showAllStocks && stocks.length > 50 && (
+              <button
+                onClick={() => setShowAllStocks(true)}
+                className="ml-3 text-blue-600 hover:underline font-medium"
+              >
+                View All
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
-          {stocks.length === 0 ? (
+          {visibleStocks.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>No stock records found</p>
               <p className="text-sm mt-2">Add your first stock entry above</p>
             </div>
           ) : (
-            stocks.map(s => (
+            visibleStocks.map(s => (
               <div key={s._id || s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
                 <div className="text-sm space-y-1">
@@ -312,7 +433,7 @@ const StockIn = () => {
 
         {/* Desktop View */}
         <div className="hidden md:block overflow-x-auto">
-          {stocks.length === 0 ? (
+          {visibleStocks.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>No stock records found</p>
               <p className="text-sm mt-2">Add your first stock entry above</p>
@@ -333,7 +454,7 @@ const StockIn = () => {
                 </tr>
               </thead>
               <tbody>
-                {stocks.map(s => (
+                {visibleStocks.map(s => (
                   <tr key={s._id || s.id} className="border-b border-gray-200 hover:bg-gray-50">
                     <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
                     <td className="px-4 py-3 font-medium">{s.materialName}</td>
@@ -356,6 +477,18 @@ const StockIn = () => {
             </table>
           )}
         </div>
+
+        {/* Load More Footer */}
+        {visibleStocks.length < stocks.length && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setShowAllStocks(true)}
+              className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg font-medium transition-colors"
+            >
+              Load All Records ({stocks.length - visibleStocks.length} more)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

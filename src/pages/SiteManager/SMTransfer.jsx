@@ -9,8 +9,14 @@ const SMTransfer = () => {
   const [transfers, setTransfers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [labours, setLabours] = useState([]);
+  const [machines, setMachines] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [labEquipments, setLabEquipments] = useState([]);
+  const [consumableGoods, setConsumableGoods] = useState([]);
+  const [equipments, setEquipments] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ type: 'labour', itemId: '', fromProject: '', toProject: '', quantity: 1, remarks: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -19,22 +25,59 @@ const SMTransfer = () => {
   const fetchData = async () => {
     try {
       const baseUrl = isAdmin ? '/admin' : '/site';
-      const [transfersRes, projectsRes, laboursRes] = await Promise.all([
+      console.log('🔄 Fetching Transfer data from:', baseUrl);
+
+      const [transfersRes, projectsRes, laboursRes, machinesRes, materialsRes, labEquipmentsRes, consumableGoodsRes, equipmentsRes] = await Promise.all([
         api.get(`${baseUrl}/transfers`),
         api.get(`${baseUrl}/projects`),
-        api.get(`${baseUrl}/labours`)
+        api.get(`${baseUrl}/labours`),
+        api.get(`${baseUrl}/machines`),
+        api.get(`${baseUrl}/materials`),
+        api.get(`${baseUrl}/lab-equipments`),
+        api.get(`${baseUrl}/consumable-goods`),
+        api.get(`${baseUrl}/equipments`)
       ]);
 
       if (transfersRes.data.success) {
         setTransfers(transfersRes.data.data);
+        console.log('✅ Transfers loaded:', transfersRes.data.data.length);
       }
 
       if (projectsRes.data.success) {
         setProjects(projectsRes.data.data);
+        console.log('✅ Projects loaded:', projectsRes.data.data.length);
       }
 
       if (laboursRes.data.success) {
         setLabours(laboursRes.data.data);
+        console.log('✅ Labours loaded:', laboursRes.data.data.length);
+      }
+
+      if (machinesRes.data.success) {
+        setMachines(machinesRes.data.data);
+        console.log('✅ Machines loaded:', machinesRes.data.data.length);
+      } else {
+        console.warn('⚠️ Machines API failed:', machinesRes.data);
+      }
+
+      if (materialsRes.data.success) {
+        setMaterials(materialsRes.data.data);
+        console.log('✅ Materials loaded:', materialsRes.data.data.length);
+      }
+
+      if (labEquipmentsRes.data.success) {
+        setLabEquipments(labEquipmentsRes.data.data);
+        console.log('✅ Lab Equipments loaded:', labEquipmentsRes.data.data.length);
+      }
+
+      if (consumableGoodsRes.data.success) {
+        setConsumableGoods(consumableGoodsRes.data.data);
+        console.log('✅ Consumable Goods loaded:', consumableGoodsRes.data.data.length);
+      }
+
+      if (equipmentsRes.data.success) {
+        setEquipments(equipmentsRes.data.data);
+        console.log('✅ Equipments loaded:', equipmentsRes.data.data.length);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -48,7 +91,10 @@ const SMTransfer = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const baseUrl = isAdmin ? '/admin' : '/site';
       const response = await api.post(`${baseUrl}/transfer`, {
         ...formData,
@@ -64,6 +110,8 @@ const SMTransfer = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to submit transfer request', 'error');
       console.error('Error submitting transfer:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -79,42 +127,95 @@ const SMTransfer = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Transfer Type</label>
-              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
                 <option value="labour">Labour</option>
                 <option value="machine">Machine</option>
                 <option value="stock">Stock</option>
+                <option value="lab-equipment">Lab Test Equipment</option>
+                <option value="consumable-goods">Consumable Goods</option>
+                <option value="equipment">Equipment</option>
               </select>
             </div>
             {formData.type === 'labour' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Labour</label>
-                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
                   <option value="">Select Labour</option>
                   {labours.map(l => <option key={l._id} value={l._id}>{l.name} - {l.designation}</option>)}
                 </select>
               </div>
             )}
+            {formData.type === 'machine' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Machine</label>
+                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                  <option value="">Select Machine</option>
+                  {machines.map(m => <option key={m._id} value={m._id}>{m.name} - {m.projectId?.name || 'Unassigned'}</option>)}
+                </select>
+              </div>
+            )}
+            {formData.type === 'stock' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Material</label>
+                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                  <option value="">Select Material</option>
+                  {materials.map((m, index) => <option key={index} value={m}>{m}</option>)}
+                </select>
+              </div>
+            )}
+            {formData.type === 'lab-equipment' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Lab Equipment</label>
+                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                  <option value="">Select Lab Equipment</option>
+                  {labEquipments.map(e => <option key={e._id} value={e._id}>{e.name} - {e.projectId?.name || 'N/A'}</option>)}
+                </select>
+              </div>
+            )}
+            {formData.type === 'consumable-goods' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Consumable Goods</label>
+                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                  <option value="">Select Consumable Goods</option>
+                  {consumableGoods.map(c => <option key={c._id} value={c._id}>{c.name} ({c.quantity} {c.unit}) - {c.projectId?.name || 'N/A'}</option>)}
+                </select>
+              </div>
+            )}
+            {formData.type === 'equipment' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Equipment</label>
+                <select value={formData.itemId} onChange={(e) => setFormData({ ...formData, itemId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                  <option value="">Select Equipment</option>
+                  {equipments.map(e => <option key={e._id} value={e._id}>{e.name} - {e.projectId?.name || 'N/A'}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">From Project</label>
-              <select value={formData.fromProject} onChange={(e) => setFormData({ ...formData, fromProject: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={formData.fromProject} onChange={(e) => setFormData({ ...formData, fromProject: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
                 <option value="">Select Project</option>
                 {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">To Project</label>
-              <select value={formData.toProject} onChange={(e) => setFormData({ ...formData, toProject: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={formData.toProject} onChange={(e) => setFormData({ ...formData, toProject: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
                 <option value="">Select Project</option>
                 {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-              <textarea value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Optional remarks" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" />
+              <textarea value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Optional remarks" disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px] disabled:bg-gray-100" />
             </div>
           </div>
-          <button type="submit" className="mt-5 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold">
-            Submit Request
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`mt-5 px-6 py-3 text-white rounded-lg transition-colors font-semibold flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Requesting...' : 'Submit Request'}
           </button>
         </form>
       )}

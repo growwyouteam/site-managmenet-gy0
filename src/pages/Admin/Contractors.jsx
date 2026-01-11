@@ -28,6 +28,7 @@ const Contractors = () => {
         machineRent: 0,
         deductRent: false
     });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         fetchContractors();
@@ -103,7 +104,10 @@ const Contractors = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         try {
+            setIsSubmitting(true);
             const contractorData = {
                 ...formData,
                 distanceValue: Number(formData.distanceValue),
@@ -128,6 +132,8 @@ const Contractors = () => {
         } catch (error) {
             showToast(error.response?.data?.error || 'Failed to save contractor', 'error');
             console.error('Error saving contractor:', error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -190,7 +196,10 @@ const Contractors = () => {
 
     const handlePaymentSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         try {
+            setIsSubmitting(true);
             let finalAmount = Number(paymentData.amount);
             if (paymentData.deductRent) {
                 finalAmount = finalAmount - paymentData.machineRent;
@@ -216,6 +225,8 @@ const Contractors = () => {
         } catch (error) {
             showToast(error.response?.data?.error || 'Failed to record payment', 'error');
             console.error('Error recording payment:', error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -391,9 +402,11 @@ const Contractors = () => {
 
                     <button
                         type="submit"
-                        className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+                        disabled={isSubmitting}
+                        className={`mt-5 px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
                     >
-                        {editingContractor ? 'Update Contractor' : 'Create Contractor'}
+                        {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+                        {isSubmitting ? 'Processing...' : (editingContractor ? 'Update Contractor' : 'Create Contractor')}
                     </button>
                 </form>
             )}
@@ -705,9 +718,11 @@ const Contractors = () => {
                             <div className="flex gap-3 mt-6">
                                 <button
                                     type="submit"
-                                    className="flex-1 px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
+                                    disabled={isSubmitting}
+                                    className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium flex justify-center items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
                                 >
-                                    Pay
+                                    {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+                                    {isSubmitting ? 'Processing...' : 'Pay'}
                                 </button>
                                 <button
                                     type="button"

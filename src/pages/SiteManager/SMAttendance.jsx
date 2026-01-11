@@ -11,6 +11,7 @@ const SMAttendance = () => {
   const [projects, setProjects] = useState([]);
   const [showCamera, setShowCamera] = useState(false);
   const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], projectId: '', photo: '', remarks: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -49,7 +50,10 @@ const SMAttendance = () => {
       showToast('Please capture a photo', 'error');
       return;
     }
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const response = await api.post(`${baseUrl}/attendance`, formData);
       if (response.data.success) {
         showToast('Attendance marked successfully', 'success');
@@ -59,6 +63,8 @@ const SMAttendance = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to mark attendance', 'error');
       console.error('Error marking attendance:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -90,8 +96,13 @@ const SMAttendance = () => {
           <label className="block text-sm font-medium text-gray-700 mb-2">Remarks (optional)</label>
           <input type="text" value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Any remarks" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <button type="submit" className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold">
-          Mark Attendance
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={`px-6 py-3 text-white rounded-lg transition-colors font-semibold flex justify-center items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+        >
+          {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+          {isSubmitting ? 'Marking Attendance...' : 'Mark Attendance'}
         </button>
       </form>
 

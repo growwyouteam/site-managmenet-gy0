@@ -10,6 +10,7 @@ const LabourAttendance = () => {
   const [projects, setProjects] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [statusMap, setStatusMap] = useState({});
+  const [savingId, setSavingId] = useState(null); // Track which labour is being saved
 
   useEffect(() => {
     fetchData();
@@ -23,12 +24,11 @@ const LabourAttendance = () => {
         api.get(`${baseUrl}/labour-attendance`)
       ]);
 
+      let labs = [];
+      let attendanceData = [];
+
       if (laboursRes.data.success) {
-        const labs = laboursRes.data.data;
-        setLabours(labs);
-        const defaults = {};
-        labs.forEach(l => { defaults[l._id] = 'present'; });
-        setStatusMap(defaults);
+        labs = laboursRes.data.data;
       }
 
       if (projectsRes.data.success) {
@@ -36,15 +36,38 @@ const LabourAttendance = () => {
       }
 
       if (attendanceRes.data.success) {
-        setAttendance(attendanceRes.data.data);
+        // Sort by date/time desc
+        const sorted = attendanceRes.data.data.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+        attendanceData = sorted;
+        setAttendance(sorted);
       }
+
+      // Filter out labours who already have attendance marked today
+      const today = new Date().toISOString().split('T')[0];
+      const labourIdsWithAttendanceToday = attendanceData
+        .filter(a => {
+          const attDate = new Date(a.date).toISOString().split('T')[0];
+          return attDate === today;
+        })
+        .map(a => a.labourId?._id || a.labourId);
+
+      const filteredLabours = labs.filter(l => !labourIdsWithAttendanceToday.includes(l._id));
+      setLabours(filteredLabours);
+
+      const defaults = {};
+      filteredLabours.forEach(l => { defaults[l._id] = 'present'; });
+      setStatusMap(defaults);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
   };
 
   const handleSave = async (labour) => {
+    if (savingId) return; // Prevent multiple clicks
+
     const status = statusMap[labour._id] || 'present';
+    setSavingId(labour._id);
+
     try {
       const response = await api.post(`${baseUrl}/labour-attendance`, {
         labourId: labour._id,
@@ -57,17 +80,28 @@ const LabourAttendance = () => {
 
       if (response.data.success) {
         showToast(`${labour.name} marked ${status}`, 'success');
-        fetchData();
+
+        // Remove labour from list immediately
+        setLabours(prev => prev.filter(l => l._id !== labour._id));
+
+        // Add new record to top of attendance list
+        if (response.data.data) {
+          setAttendance(prev => [response.data.data, ...prev]);
+        }
       }
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to mark attendance', 'error');
       console.error('Error marking attendance:', error);
+    } finally {
+      setSavingId(null);
     }
   };
 
   const handleEditLoad = (record) => {
     setStatusMap((prev) => ({ ...prev, [record.labourId]: record.status || 'present' }));
     showToast('Status loaded. Update dropdown and Save.', 'info');
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -95,7 +129,8 @@ const LabourAttendance = () => {
                 <select
                   value={statusMap[labour._id] || 'present'}
                   onChange={(e) => setStatusMap(prev => ({ ...prev, [labour._id]: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={savingId === labour._id}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 >
                   <option value="present">Present</option>
                   <option value="half">Half</option>
@@ -105,9 +140,15 @@ const LabourAttendance = () => {
               <div className="md:col-span-2 flex md:justify-center">
                 <button
                   onClick={() => handleSave(labour)}
-                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold w-full md:w-auto"
+                  disabled={savingId === labour._id}
+                  className={`px-4 py-2 text-white rounded-lg transition-colors text-sm font-semibold w-full md:w-auto flex justify-center items-center gap-2 ${savingId === labour._id ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
                 >
-                  Save
+                  {savingId === labour._id ? (
+                    <>
+                      <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                      Saving
+                    </>
+                  ) : 'Save'}
                 </button>
               </div>
             </div>
@@ -138,12 +179,16 @@ const LabourAttendance = () => {
               </thead>
               <tbody>
                 {attendance.map(a => (
-                  <tr key={a._id} className="border-b border-gray-100">
+                  <tr key={a._id} className="border-b border-gray-100 animate-fadeIn">
                     <td className="px-4 py-2">{a.date}</td>
-                    <td className="px-4 py-2">{a.labourName}</td>
+                    <td className="px-4 py-2 font-medium">{a.labourName}</td>
                     <td className="px-4 py-2">{typeof a.projectId === 'object' ? a.projectId?.name : a.projectId}</td>
-                    <td className="px-4 py-2 capitalize">{a.status || 'present'}</td>
-                    <td className="px-4 py-2">{new Date(a.time).toLocaleTimeString()}</td>
+                    <td className="px-4 py-2 capitalize">
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${a.status === 'absent' ? 'bg-red-100 text-red-700' : a.status === 'half' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                        {a.status || 'present'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">{new Date(a.time || a.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                     <td className="px-4 py-2">
                       <button
                         onClick={() => handleEditLoad(a)}

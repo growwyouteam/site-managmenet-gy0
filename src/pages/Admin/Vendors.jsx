@@ -8,36 +8,32 @@ const Vendors = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
   const [formData, setFormData] = useState({ name: '', contact: '', email: '', address: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchVendors();
   }, []);
 
   // Calculate vendor statistics
-  const getVendorStats = (vendorId) => {
-    // Debug: Log the vendorId and stocks data
-    console.log('🔍 Calculating stats for vendor:', vendorId);
-    console.log('📦 Available stocks:', stocks.length);
-
+  const getVendorStats = (vendor) => {
     // More robust vendor ID matching
     const vendorStocks = stocks.filter(s => {
       if (!s.vendorId) return false;
 
       // Handle different vendorId formats
       if (typeof s.vendorId === 'object' && s.vendorId._id) {
-        return s.vendorId._id === vendorId;
+        return s.vendorId._id === vendor._id;
       } else if (typeof s.vendorId === 'string') {
-        return s.vendorId === vendorId;
+        return s.vendorId === vendor._id;
       } else if (s.vendorId.toString) {
-        return s.vendorId.toString() === vendorId;
+        return s.vendorId.toString() === vendor._id;
       }
       return false;
     });
 
-    console.log('🎯 Matched stocks for vendor:', vendorStocks.length);
-
-    const totalSupplied = vendorStocks.reduce((sum, stock) => sum + (stock.totalPrice || 0), 0);
     const totalItems = vendorStocks.length;
     const recentSupplies = vendorStocks.filter(s => {
       const supplyDate = new Date(s.createdAt);
@@ -46,14 +42,15 @@ const Vendors = () => {
       return supplyDate > thirtyDaysAgo;
     }).length;
 
+    // Use actual vendor model data instead of calculating
     const stats = {
-      totalSupplied,
+      totalSupplied: vendor.totalSupplied || 0,  // From vendor model
+      pendingAmount: vendor.pendingAmount || 0,  // From vendor model
+      totalPaid: (vendor.totalSupplied || 0) - (vendor.pendingAmount || 0),
       totalItems,
-      recentSupplies,
-      pendingAmount: totalSupplied * 0.3 // Assuming 30% pending (can be calculated from actual payments)
+      recentSupplies
     };
 
-    console.log('📊 Vendor stats:', stats);
     return stats;
   };
 
@@ -84,7 +81,10 @@ const Vendors = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       if (editingVendor) {
         const response = await api.put(`/admin/vendors/${editingVendor._id}`, formData);
         if (response.data.success) {
@@ -103,6 +103,8 @@ const Vendors = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to save vendor', 'error');
       console.error('Error saving vendor:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -128,6 +130,37 @@ const Vendors = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to delete vendor', 'error');
       console.error('Error deleting vendor:', error);
+    }
+  };
+
+  const handlePayment = async () => {
+    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+      showToast('Please enter a valid amount', 'error');
+      return;
+    }
+
+    const pendingAmount = getVendorStats(selectedVendor).pendingAmount;
+    if (parseFloat(paymentAmount) > pendingAmount) {
+      showToast(`Payment amount cannot exceed pending amount (₹${pendingAmount.toLocaleString()})`, 'error');
+      return;
+    }
+
+    try {
+      const response = await api.post('/admin/vendors/payment', {
+        vendorId: selectedVendor._id,
+        amount: parseFloat(paymentAmount)
+      });
+
+      if (response.data.success) {
+        showToast('Payment recorded successfully', 'success');
+        setShowPaymentModal(false);
+        setPaymentAmount('');
+        setSelectedVendor(null);
+        fetchVendors();
+      }
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to record payment', 'error');
+      console.error('Error recording payment:', error);
     }
   };
 
@@ -200,8 +233,13 @@ const Vendors = () => {
             </div>
           </div>
           <div className="flex gap-3 mt-5">
-            <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-              {editingVendor ? 'Update Vendor' : 'Add Vendor'}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+            >
+              {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+              {isSubmitting ? 'Processing...' : (editingVendor ? 'Update Vendor' : 'Add Vendor')}
             </button>
             {editingVendor && (
               <button
@@ -233,10 +271,11 @@ const Vendors = () => {
                 <div><span className="font-medium">Contact:</span> {v.contact}</div>
                 <div><span className="font-medium">Email:</span> {v.email || 'N/A'}</div>
                 <div><span className="font-medium">Address:</span> {v.address || 'N/A'}</div>
-                <div><span className="font-medium">Total Items:</span> <span className="text-blue-600 font-bold">{getVendorStats(v._id).totalItems}</span></div>
-                <div><span className="font-medium">Recent Supplies:</span> <span className="text-purple-600 font-bold">{getVendorStats(v._id).recentSupplies} (30 days)</span></div>
-                <div><span className="font-medium">Total Supplied:</span> <span className="text-green-600 font-bold">₹{getVendorStats(v._id).totalSupplied.toLocaleString()}</span></div>
-                <div><span className="font-medium">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(v._id).pendingAmount.toLocaleString()}</span></div>
+                <div><span className="font-medium">Total Items:</span> <span className="text-blue-600 font-bold">{getVendorStats(v).totalItems}</span></div>
+                <div><span className="font-medium">Recent Supplies:</span> <span className="text-purple-600 font-bold">{getVendorStats(v).recentSupplies} (30 days)</span></div>
+                <div><span className="font-medium">Total Supplied:</span> <span className="text-green-600 font-bold">₹{getVendorStats(v).totalSupplied.toLocaleString()}</span></div>
+                <div><span className="font-medium">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(v).pendingAmount.toLocaleString()}</span></div>
+                <div><span className="font-medium">Total Paid:</span> <span className="text-blue-600 font-bold">₹{getVendorStats(v).totalPaid.toLocaleString()}</span></div>
               </div>
               <div className="flex gap-2 mt-3">
                 <button
@@ -246,6 +285,12 @@ const Vendors = () => {
                   👁️ View
                 </button>
                 <button
+                  onClick={() => { setSelectedVendor(v); setShowPaymentModal(true); }}
+                  className="flex-1 px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
+                >
+                  💰 Pay
+                </button>
+                <button
                   onClick={() => handleEdit(v)}
                   className="flex-1 px-3 py-2 bg-yellow-500 text-white rounded text-sm font-medium hover:bg-yellow-600"
                 >
@@ -253,8 +298,7 @@ const Vendors = () => {
                 </button>
                 <button
                   onClick={() => handleDelete(v.id)}
-                  className="flex-1 px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
-                >
+                  className="flex-1 px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600">
                   🗑️ Remove
                 </button>
               </div>
@@ -283,10 +327,10 @@ const Vendors = () => {
                   <td className="px-4 py-3 font-mono text-sm">{v._id?.slice(-8) || 'N/A'}</td>
                   <td className="px-4 py-3 font-medium">{v.name}</td>
                   <td className="px-4 py-3">{v.contact}</td>
-                  <td className="px-4 py-3 text-blue-600 font-bold">{getVendorStats(v._id).totalItems}</td>
-                  <td className="px-4 py-3 text-purple-600 font-bold">{getVendorStats(v._id).recentSupplies}</td>
-                  <td className="px-4 py-3 text-green-600 font-bold">₹{getVendorStats(v._id).totalSupplied.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-red-600 font-bold">₹{getVendorStats(v._id).pendingAmount.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-blue-600 font-bold">{getVendorStats(v).totalItems}</td>
+                  <td className="px-4 py-3 text-purple-600 font-bold">{getVendorStats(v).recentSupplies}</td>
+                  <td className="px-4 py-3 text-green-600 font-bold">₹{getVendorStats(v).totalSupplied.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-red-600 font-bold">₹{getVendorStats(v).pendingAmount.toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
@@ -295,6 +339,13 @@ const Vendors = () => {
                         title="View Details"
                       >
                         👁️
+                      </button>
+                      <button
+                        onClick={() => { setSelectedVendor(v); setShowPaymentModal(true); }}
+                        className="px-3 py-1.5 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                        title="Record Payment"
+                      >
+                        💰
                       </button>
                       <button
                         onClick={() => handleEdit(v)}
@@ -349,16 +400,19 @@ const Vendors = () => {
                 <span className="font-medium text-gray-700">Address:</span> {selectedVendor.address || 'N/A'}
               </div>
               <div className="p-3 bg-blue-50 rounded">
-                <span className="font-medium text-blue-700">Total Items Supplied:</span> <span className="text-blue-600 font-bold">{getVendorStats(selectedVendor._id).totalItems}</span>
+                <span className="font-medium text-blue-700">Total Items Supplied:</span> <span className="text-blue-600 font-bold">{getVendorStats(selectedVendor).totalItems}</span>
               </div>
               <div className="p-3 bg-purple-50 rounded">
-                <span className="font-medium text-purple-700">Recent Supplies (30 days):</span> <span className="text-purple-600 font-bold">{getVendorStats(selectedVendor._id).recentSupplies}</span>
+                <span className="font-medium text-purple-700">Recent Supplies (30 days):</span> <span className="text-purple-600 font-bold">{getVendorStats(selectedVendor).recentSupplies}</span>
               </div>
               <div className="p-3 bg-green-50 rounded">
-                <span className="font-medium text-green-700">Total Supplied Value:</span> <span className="text-green-600 font-bold">₹{getVendorStats(selectedVendor._id).totalSupplied.toLocaleString()}</span>
+                <span className="font-medium text-green-700">Total Supplied Value:</span> <span className="text-green-600 font-bold">₹{getVendorStats(selectedVendor).totalSupplied.toLocaleString()}</span>
               </div>
               <div className="p-3 bg-red-50 rounded">
-                <span className="font-medium text-red-700">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(selectedVendor._id).pendingAmount.toLocaleString()}</span>
+                <span className="font-medium text-red-700">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(selectedVendor).pendingAmount.toLocaleString()}</span>
+              </div>
+              <div className="p-3 bg-blue-50 rounded">
+                <span className="font-medium text-blue-700">Total Paid:</span> <span className="text-blue-600 font-bold">₹{getVendorStats(selectedVendor).totalPaid.toLocaleString()}</span>
               </div>
 
               {/* Stock Details */}
@@ -383,6 +437,47 @@ const Vendors = () => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedVendor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Record Payment</h3>
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Vendor: <span className="font-bold text-gray-900">{selectedVendor.name}</span></p>
+                <p className="text-sm text-gray-600 mt-1">Total Supplied: <span className="font-bold text-green-600">₹{getVendorStats(selectedVendor).totalSupplied.toLocaleString()}</span></p>
+                <p className="text-sm text-gray-600 mt-1">Pending: <span className="font-bold text-red-600">₹{getVendorStats(selectedVendor).pendingAmount.toLocaleString()}</span></p>
+                <p className="text-sm text-gray-600 mt-1">Total Paid: <span className="font-bold text-blue-600">₹{getVendorStats(selectedVendor).totalPaid.toLocaleString()}</span></p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Payment Amount</label>
+                <input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePayment}
+                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
+                >
+                  Record Payment
+                </button>
+                <button
+                  onClick={() => { setShowPaymentModal(false); setPaymentAmount(''); setSelectedVendor(null); }}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

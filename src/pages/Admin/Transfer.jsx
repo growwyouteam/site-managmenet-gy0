@@ -8,8 +8,12 @@ const Transfer = () => {
   const [labours, setLabours] = useState([]);
   const [machines, setMachines] = useState([]);
   const [stocks, setStocks] = useState([]);
+  const [labEquipments, setLabEquipments] = useState([]);
+  const [consumableGoods, setConsumableGoods] = useState([]);
+  const [equipments, setEquipments] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ type: 'labour', itemId: '', fromProject: '', toProject: '', quantity: 1 });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -17,12 +21,15 @@ const Transfer = () => {
 
   const fetchData = async () => {
     try {
-      const [transfersRes, projectsRes, laboursRes, machinesRes, stocksRes] = await Promise.all([
+      const [transfersRes, projectsRes, laboursRes, machinesRes, stocksRes, labEquipmentsRes, consumableGoodsRes, equipmentsRes] = await Promise.all([
         api.get('/admin/transfers'),
         api.get('/admin/projects'),
         api.get('/admin/labours'),
         api.get('/admin/machines'),
-        api.get('/admin/stocks')
+        api.get('/admin/stocks'),
+        api.get('/admin/lab-equipments'),
+        api.get('/admin/consumable-goods'),
+        api.get('/admin/equipments')
       ]);
 
       if (transfersRes.data.success) {
@@ -60,6 +67,18 @@ const Transfer = () => {
           setFormData(prev => ({ ...prev, itemId: prev.itemId || stocksRes.data.data[0]._id }));
         }
       }
+
+      if (labEquipmentsRes.data.success) {
+        setLabEquipments(labEquipmentsRes.data.data);
+      }
+
+      if (consumableGoodsRes.data.success) {
+        setConsumableGoods(consumableGoodsRes.data.data);
+      }
+
+      if (equipmentsRes.data.success) {
+        setEquipments(equipmentsRes.data.data);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -67,7 +86,10 @@ const Transfer = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const response = await api.post('/admin/transfers', formData);
       if (response.data.success) {
         showToast('Transfer completed', 'success');
@@ -78,6 +100,8 @@ const Transfer = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to create transfer', 'error');
       console.error('Error creating transfer:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -104,6 +128,9 @@ const Transfer = () => {
                 <option value="labour">👷 Labour</option>
                 <option value="machine">🚜 Machine</option>
                 <option value="stock">📦 Stock</option>
+                <option value="lab-equipment">🧪 Lab Test Equipment</option>
+                <option value="consumable-goods">🛒 Consumable Goods</option>
+                <option value="equipment">🔧 Equipment</option>
               </select>
             </div>
             {formData.type === 'labour' && (
@@ -148,6 +175,48 @@ const Transfer = () => {
                 </select>
               </div>
             )}
+            {formData.type === 'lab-equipment' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Lab Equipment</label>
+                <select
+                  value={formData.itemId}
+                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Lab Equipment</option>
+                  {labEquipments.map(e => <option key={e._id} value={e._id}>{e.name} - {e.projectId?.name || 'N/A'}</option>)}
+                </select>
+              </div>
+            )}
+            {formData.type === 'consumable-goods' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Consumable Goods</label>
+                <select
+                  value={formData.itemId}
+                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Consumable Goods</option>
+                  {consumableGoods.map(c => <option key={c._id} value={c._id}>{c.name} ({c.quantity} {c.unit}) - {c.projectId?.name || 'N/A'}</option>)}
+                </select>
+              </div>
+            )}
+            {formData.type === 'equipment' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Equipment</label>
+                <select
+                  value={formData.itemId}
+                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Equipment</option>
+                  {equipments.map(e => <option key={e._id} value={e._id}>{e.name} - {e.projectId?.name || 'N/A'}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">From Project *</label>
               <select
@@ -186,8 +255,13 @@ const Transfer = () => {
               </div>
             )}
           </div>
-          <button type="submit" className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            Transfer
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`mt-5 px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Processing...' : 'Transfer'}
           </button>
         </form>
       )}

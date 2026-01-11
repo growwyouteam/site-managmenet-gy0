@@ -16,6 +16,7 @@ const Expenses = () => {
     category: 'material',
     remarks: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -91,6 +92,7 @@ const Expenses = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     // Validation
     if (!formData.projectId) {
@@ -111,6 +113,7 @@ const Expenses = () => {
     }
 
     try {
+      setIsSubmitting(true);
       const expenseData = {
         ...formData,
         amount: Number(formData.amount)
@@ -145,6 +148,8 @@ const Expenses = () => {
     } catch (error) {
       showToast(error.response?.data?.error || `Failed to ${editingExpense ? 'update' : 'add'} expense`, 'error');
       console.error('Error saving expense:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -301,8 +306,13 @@ const Expenses = () => {
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-              {editingExpense ? 'Update Expense' : 'Add Expense'}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+            >
+              {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+              {isSubmitting ? 'Processing...' : (editingExpense ? 'Update Expense' : 'Add Expense')}
             </button>
             {editingExpense && (
               <button

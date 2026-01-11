@@ -17,12 +17,14 @@ const Stock = () => {
     unit: 'kg',
     quantity: '',
     unitPrice: '',
-    photo: '',
+    photo: null,
     remarks: ''
   });
+  const [photoPreview, setPhotoPreview] = useState('');
   const [selectedStock, setSelectedStock] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [editingStock, setEditingStock] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const units = ['kg', 'ltr', 'bags', 'ft', 'meter', 'ton', 'piece', 'box', 'bundle'];
 
@@ -144,11 +146,25 @@ const Stock = () => {
     }
 
     try {
-      const response = await optimizedApi.post('/admin/stocks', {
-        ...formData,
-        quantity: Number(formData.quantity),
-        unitPrice: Number(formData.unitPrice),
-        totalPrice: Number(formData.quantity) * Number(formData.unitPrice)
+      setIsSubmitting(true);
+
+      // Create FormData for file upload
+      const submitData = new FormData();
+      submitData.append('projectId', formData.projectId);
+      submitData.append('vendorId', formData.vendorId);
+      submitData.append('materialName', formData.materialName);
+      submitData.append('unit', formData.unit);
+      submitData.append('quantity', formData.quantity);
+      submitData.append('unitPrice', formData.unitPrice);
+      if (formData.photo) {
+        submitData.append('photo', formData.photo);
+      }
+      if (formData.remarks) {
+        submitData.append('remarks', formData.remarks);
+      }
+
+      const response = await optimizedApi.post('/admin/stocks', submitData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (response.data.success) {
@@ -161,9 +177,10 @@ const Stock = () => {
           unit: 'kg',
           quantity: '',
           unitPrice: '',
-          photo: '',
+          photo: null,
           remarks: ''
         });
+        setPhotoPreview('');
         // Invalidate cache and refresh data
         optimizedApi.invalidateCache('stocks');
         fetchData();
@@ -171,6 +188,8 @@ const Stock = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to add stock', 'error');
       console.error('Error adding stock:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -215,6 +234,7 @@ const Stock = () => {
     if (!editingStock) return;
 
     try {
+      setIsSubmitting(true);
       const response = await optimizedApi.put(`/admin/stocks/${editingStock._id}`, {
         ...formData,
         quantity: Number(formData.quantity),
@@ -242,14 +262,25 @@ const Stock = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to update stock', 'error');
       console.error('Error updating stock:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handlePhoto = (file) => {
-    if (!file) return setFormData(prev => ({ ...prev, photo: '' }));
+    if (!file) {
+      setFormData(prev => ({ ...prev, photo: null }));
+      setPhotoPreview('');
+      return;
+    }
+
+    // Store file object for FormData
+    setFormData(prev => ({ ...prev, photo: file }));
+
+    // Create preview
     const reader = new FileReader();
     reader.onload = () => {
-      setFormData(prev => ({ ...prev, photo: reader.result }));
+      setPhotoPreview(reader.result);
     };
     reader.readAsDataURL(file);
   };
@@ -364,13 +395,13 @@ const Stock = () => {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
-            {formData.photo && (
+            {photoPreview && (
               <div className="mt-2">
-                <img src={formData.photo} alt="Preview" className="h-24 w-24 object-cover rounded border" />
-                <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
+                <img src={photoPreview} alt="Preview" className="h-24 w-24 object-cover rounded border" />
+                <p className="text-xs text-green-600 mt-1">✓ Photo selected</p>
               </div>
             )}
-            {!formData.photo && (
+            {!photoPreview && (
               <p className="text-xs text-red-600 mt-1">Photo is required</p>
             )}
           </div>
@@ -384,8 +415,13 @@ const Stock = () => {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            {editingStock ? 'Update Stock' : 'Add Stock'}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Processing...' : (editingStock ? 'Update Stock' : 'Add Stock')}
           </button>
         </form>
       )}
@@ -405,9 +441,11 @@ const Stock = () => {
               <div key={s._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
                 <div className="text-sm space-y-1">
+                  <div><span className="font-medium">Project:</span> <span className="font-bold">{typeof s.projectId === 'object' ? s.projectId?.name : projects.find(p => p._id === s.projectId)?.name || '-'}</span></div>
                   <div><span className="font-medium">Quantity:</span> <span className="font-bold">{s.quantity} {s.unit}</span></div>
                   <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
-                  <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
+                  <div><span className="font-medium">Total:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
+                  <div><span className="font-medium">Vendor:</span> {typeof s.vendorId === 'object' ? s.vendorId?.name : vendors.find(v => v._id === s.vendorId)?.name || '-'}</div>
                   {s.remarks && <div><span className="font-medium">Remarks:</span> {s.remarks}</div>}
                 </div>
                 <div className="flex gap-2 mt-3">
@@ -446,11 +484,13 @@ const Stock = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-gray-200">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Photo</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
@@ -459,11 +499,13 @@ const Stock = () => {
               <tbody>
                 {stocks.map(s => (
                   <tr key={s._id} className="border-b border-gray-200 hover:bg-gray-50">
+                    <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : projects.find(p => p._id === s.projectId)?.name || '-'}</td>
                     <td className="px-4 py-3">{s.materialName}</td>
                     <td className="px-4 py-3 font-bold">{s.quantity}</td>
                     <td className="px-4 py-3">{s.unit}</td>
                     <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
                     <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
+                    <td className="px-4 py-3">{typeof s.vendorId === 'object' ? s.vendorId?.name : vendors.find(v => v._id === s.vendorId)?.name || '-'}</td>
                     <td className="px-4 py-3">
                       {s.photo ? (
                         <img src={s.photo} alt="Stock" className="h-12 w-12 object-cover rounded border cursor-pointer"
@@ -519,13 +561,25 @@ const Stock = () => {
               </div>
 
               <div className="space-y-4">
-                {selectedStock.photo && (
-                  <div className="flex justify-center">
-                    <img src={selectedStock.photo} alt="Stock" className="max-w-full h-64 object-contain rounded border" />
+                {selectedStock.photo ? (
+                  <div className="flex justify-center bg-gray-100 p-4 rounded-lg">
+                    <img src={selectedStock.photo} alt="Stock" className="max-w-full h-80 object-contain rounded border-2 border-gray-300 shadow-lg" />
+                  </div>
+                ) : (
+                  <div className="flex justify-center bg-gray-100 p-8 rounded-lg">
+                    <p className="text-gray-400 text-lg">📷 No photo available</p>
                   </div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Project</label>
+                    <p className="text-lg font-semibold">{typeof selectedStock.projectId === 'object' ? selectedStock.projectId?.name : projects.find(p => p._id === selectedStock.projectId)?.name || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Vendor</label>
+                    <p className="text-lg font-semibold">{typeof selectedStock.vendorId === 'object' ? selectedStock.vendorId?.name : vendors.find(v => v._id === selectedStock.vendorId)?.name || '-'}</p>
+                  </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Material Name</label>
                     <p className="text-lg font-semibold">{selectedStock.materialName}</p>

@@ -12,6 +12,7 @@ const Gallery = () => {
   const [selectedProject, setSelectedProject] = useState('');
   const [capturedImages, setCapturedImages] = useState([]);
   const [showCamera, setShowCamera] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -49,7 +50,10 @@ const Gallery = () => {
       showToast('Please capture at least one photo', 'error');
       return;
     }
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const response = await api.post(`${baseUrl}/gallery`, {
         projectId: selectedProject,
         images: capturedImages
@@ -63,6 +67,8 @@ const Gallery = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to upload images', 'error');
       console.error('Error uploading images:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -83,8 +89,13 @@ const Gallery = () => {
             📸 Capture Photo
           </button>
           {capturedImages.length > 0 && (
-            <button onClick={handleUpload} className="px-5 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-              Upload {capturedImages.length} Photo(s)
+            <button
+              onClick={handleUpload}
+              disabled={isSubmitting}
+              className={`px-5 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+            >
+              {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+              {isSubmitting ? 'Uploading...' : `Upload ${capturedImages.length} Photo(s)`}
             </button>
           )}
         </div>

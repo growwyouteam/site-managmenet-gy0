@@ -32,6 +32,7 @@ const Sidebar = () => {
     { path: '/site/attendance', label: 'My Attendance', icon: '📸' },
     { path: '/site/labour', label: 'Labour', icon: '👷' },
     { path: '/site/labour-attendance', label: 'Labour Attendance', icon: '✅' },
+    { path: '/site/stock', label: 'Site Stock', icon: '📊' },
     { path: '/site/stock-in', label: 'Stock In', icon: '📦' },
     { path: '/site/transfer', label: 'Transfer', icon: '🔄' },
     { path: '/site/daily-report', label: 'Daily Report', icon: '📝' },

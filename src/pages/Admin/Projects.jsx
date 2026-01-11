@@ -15,6 +15,7 @@ const Projects = () => {
     roadDistanceValue: '',
     roadDistanceUnit: 'km'
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -34,7 +35,10 @@ const Projects = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const response = await api.post('/admin/projects', {
         ...formData,
         budget: Number(formData.budget) || 0,
@@ -57,6 +61,8 @@ const Projects = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to create project', 'error');
       console.error('Error creating project:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -162,8 +168,13 @@ const Projects = () => {
               />
             </div>
           </div>
-          <button type="submit" className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            Create Project
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Creating...' : 'Create Project'}
           </button>
         </form>
       )}

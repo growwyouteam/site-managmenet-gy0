@@ -10,6 +10,7 @@ const Labour = () => {
   const [projects, setProjects] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', dailyWage: '', designation: '', assignedSite: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -40,7 +41,10 @@ const Labour = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const response = await api.post(`${baseUrl}/labours`, formData);
       if (response.data.success) {
         showToast('Labour enrolled successfully', 'success');
@@ -51,6 +55,8 @@ const Labour = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to enroll labour', 'error');
       console.error('Error enrolling labour:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -123,8 +129,13 @@ const Labour = () => {
               </select>
             </div>
           </div>
-          <button type="submit" className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            Enroll Labour
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`mt-5 px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Processing...' : 'Enroll Labour'}
           </button>
         </form>
       )}

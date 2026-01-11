@@ -10,6 +10,7 @@ const SMExpenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ projectId: '', name: '', amount: '', voucherNumber: '', remarks: '', receipt: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -40,7 +41,10 @@ const SMExpenses = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       const response = await api.post(`${baseUrl}/expenses`, {
         ...formData,
         amount: Number(formData.amount) || 0
@@ -55,6 +59,8 @@ const SMExpenses = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to add expense', 'error');
       console.error('Error adding expense:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,34 +83,39 @@ const SMExpenses = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
-              <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={formData.projectId} onChange={(e) => setFormData({ ...formData, projectId: e.target.value })} required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
                 {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Expense Name</label>
-              <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Material Purchase" required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Material Purchase" required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
-              <input type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="Amount" required className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="Amount" required disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Voucher Number</label>
-              <input type="text" value={formData.voucherNumber} onChange={(e) => setFormData({ ...formData, voucherNumber: e.target.value })} placeholder="Optional" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={formData.voucherNumber} onChange={(e) => setFormData({ ...formData, voucherNumber: e.target.value })} placeholder="Optional" disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Receipt</label>
-              <input type="file" accept="image/*" onChange={(e) => handleReceipt(e.target.files?.[0])} className="w-full" />
+              <input type="file" accept="image/*" onChange={(e) => handleReceipt(e.target.files?.[0])} disabled={isSubmitting} className="w-full disabled:cursor-not-allowed" />
               {formData.receipt && <img src={formData.receipt} alt="Receipt" className="mt-2 h-24 w-24 object-cover rounded border" />}
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
-              <textarea value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Optional remarks" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" />
+              <textarea value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} placeholder="Optional remarks" disabled={isSubmitting} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px] disabled:bg-gray-100" />
             </div>
           </div>
-          <button type="submit" className="mt-5 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold">
-            Add Expense
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`mt-5 px-6 py-3 text-white rounded-lg transition-colors font-semibold flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Adding...' : 'Add Expense'}
           </button>
         </form>
       )}

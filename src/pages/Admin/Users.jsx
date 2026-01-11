@@ -9,6 +9,7 @@ const Users = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [viewingUser, setViewingUser] = useState(null);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '', salary: '', dateOfJoining: new Date().toISOString().split('T')[0] });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -28,7 +29,10 @@ const Users = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
       if (editingUser) {
         const response = await api.put(`/admin/users/${editingUser._id}`, formData);
         if (response.data.success) {
@@ -51,6 +55,8 @@ const Users = () => {
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to save user', 'error');
       console.error('Error saving user:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -184,8 +190,13 @@ const Users = () => {
               />
             </div>
           </div>
-          <button type="submit" className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium">
-            {editingUser ? 'Update User' : 'Create User'}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`mt-5 px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+          >
+            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+            {isSubmitting ? 'Processing...' : (editingUser ? 'Update User' : 'Create User')}
           </button>
         </form>
       )}
@@ -225,7 +236,7 @@ const Users = () => {
                   ✏️ Edit
                 </button>
                 <button
-                  onClick={() => handleDelete(u.id)}
+                  onClick={() => handleDelete(u._id)}
                   className="flex-1 px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
                 >
                   🗑️ Delete
@@ -282,7 +293,7 @@ const Users = () => {
                         ✏️
                       </button>
                       <button
-                        onClick={() => handleDelete(u.id)}
+                        onClick={() => handleDelete(u._id)}
                         className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
                         title="Delete User"
                       >

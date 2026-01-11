@@ -25,11 +25,8 @@ const ProjectDetail = () => {
       }
 
       // Make all API calls in parallel for better performance
-      const [projectResponse, stocksResponse, machinesResponse] = await Promise.all([
-        api.get(`/admin/projects/${id}`),
-        api.get('/admin/stocks'),
-        api.get('/admin/machines')
-      ]);
+      // Make API call for optimized project details (includes all related data)
+      const projectResponse = await api.get(`/admin/projects/${id}`);
 
       if (!projectResponse.data.success) {
         setData(null);
@@ -40,25 +37,13 @@ const ProjectDetail = () => {
 
       const projectData = projectResponse.data.data;
 
-      // Filter stocks and machines for this project
-      const projectStocks = stocksResponse.data.success
-        ? stocksResponse.data.data.filter(stock => String(stock.projectId) === String(id))
-        : [];
-
-      const projectMachines = machinesResponse.data.success
-        ? machinesResponse.data.data.filter(machine => {
-          // Handle both populated object and direct ID string
-          const machineProjectId = machine.projectId?._id || machine.projectId;
-          return String(machineProjectId) === String(id);
-        })
-        : [];
-
       setData({
         project: projectData.project,
         expenses: projectData.expenses || [],
-        stocks: projectStocks,
-        machines: projectMachines,
-        labours: projectData.labours || []
+        stocks: projectData.stocks || [],
+        machines: projectData.machines || [],
+        labours: projectData.labours || [],
+        contractors: projectData.contractors || []
       });
       setLoading(false);
     } catch (error) {
@@ -87,7 +72,7 @@ const ProjectDetail = () => {
       <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{data.project.name}</h1>
       <p className="text-gray-600 mt-2">📍 {data.project.location}</p>
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Budget</h3>
           <p className="text-2xl md:text-3xl font-bold text-blue-600">₹{data.project.budget?.toLocaleString()}</p>
@@ -103,6 +88,10 @@ const ProjectDetail = () => {
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Stock Items</h3>
           <p className="text-2xl md:text-3xl font-bold text-orange-600">{data.stocks?.length || 0}</p>
+        </div>
+        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-600 mb-2">Contractors</h3>
+          <p className="text-2xl md:text-3xl font-bold text-purple-600">{data.contractors?.length || 0}</p>
         </div>
       </div>
 
@@ -221,6 +210,43 @@ const ProjectDetail = () => {
           </div>
         ) : (
           <p className="text-gray-400">No labours assigned to this project</p>
+        )}
+      </div>
+
+      {/* Contractors Section */}
+      <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Contractors ({data.contractors?.length || 0})</h2>
+        {data.contractors && data.contractors.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Mobile</th>
+                  <th className="px-4 py-3">Address</th>
+                  <th className="px-4 py-3">Distance</th>
+                  <th className="px-4 py-3">Expense/Unit</th>
+                  <th className="px-4 py-3">Total Payable</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.contractors.map(contractor => (
+                  <tr key={contractor._id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{contractor.name}</td>
+                    <td className="px-4 py-3">{contractor.mobile}</td>
+                    <td className="px-4 py-3">{contractor.address}</td>
+                    <td className="px-4 py-3">{contractor.distanceValue} {contractor.distanceUnit}</td>
+                    <td className="px-4 py-3 font-bold text-blue-600">₹{contractor.expensePerUnit?.toLocaleString()}</td>
+                    <td className="px-4 py-3 font-bold text-green-600">
+                      ₹{((contractor.distanceValue || 0) * (contractor.expensePerUnit || 0)).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-400">No contractors assigned to this project</p>
         )}
       </div>
 

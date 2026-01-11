@@ -36,6 +36,7 @@ const SMAttendance = lazy(() => import('./pages/SiteManager/SMAttendance'));
 const Labour = lazy(() => import('./pages/SiteManager/Labour'));
 const LabourAttendance = lazy(() => import('./pages/SiteManager/LabourAttendance'));
 const StockIn = lazy(() => import('./pages/SiteManager/StockIn'));
+const SiteStock = lazy(() => import('./pages/SiteManager/Stock'));
 const SMTransfer = lazy(() => import('./pages/SiteManager/SMTransfer'));
 const DailyReport = lazy(() => import('./pages/SiteManager/DailyReport'));
 const Gallery = lazy(() => import('./pages/SiteManager/Gallery'));
@@ -156,6 +157,7 @@ const AppRoutes = () => {
               <Route path="/site/attendance" element={<SMAttendance />} />
               <Route path="/site/labour" element={<Labour />} />
               <Route path="/site/labour-attendance" element={<LabourAttendance />} />
+              <Route path="/site/stock" element={<SiteStock />} />
               <Route path="/site/stock-in" element={<StockIn />} />
               <Route path="/site/transfer" element={<SMTransfer />} />
               <Route path="/site/daily-report" element={<DailyReport />} />
