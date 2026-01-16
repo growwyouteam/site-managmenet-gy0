@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { showToast } from '../../components/Toast';
 import api from '../../services/api';
-import { isValidObjectId } from '../../utils/validation';
 
 const MachineCategory = () => {
   const { category } = useParams();
@@ -12,10 +11,13 @@ const MachineCategory = () => {
   const [contractors, setContractors] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [assignProjectId, setAssignProjectId] = useState('');
+  const [assignToContractor, setAssignToContractor] = useState(false);
   const [assignAsRental, setAssignAsRental] = useState(false);
-  const [rentalPerDay, setRentalPerDay] = useState(0);
+  const [rentalAmount, setRentalAmount] = useState(0);
+  const [rentalType, setRentalType] = useState('perDay');
   const [formData, setFormData] = useState({
     name: '',
     model: '',
@@ -26,7 +28,8 @@ const MachineCategory = () => {
     vendorName: '',
     machineCategory: '',
     machinePhoto: '',
-    perDayExpense: 0
+    perDayExpense: 0,
+    projectId: ''
   });
   const [editingMachine, setEditingMachine] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,16 +42,19 @@ const MachineCategory = () => {
 
   const fetchMachines = async () => {
     try {
-      console.log(`🔍 Fetching machines for category: ${category}`);
       const response = await api.get('/admin/machines');
-      console.log('📦 API Response:', response.data);
-
       if (response.data.success) {
-        // Filter machines by category and add project information from populated data
         const filteredMachines = response.data.data.filter(m => m.category === category);
-        console.log(`✅ Found ${filteredMachines.length} machines in category "${category}"`);
-
         const machinesWithProjects = filteredMachines.map((machine) => {
+          // If status is 'available', always show 'Not Assigned'
+          if (machine.status === 'available') {
+            return {
+              ...machine,
+              projectName: 'Not Assigned',
+              projectLocation: '-'
+            };
+          }
+          // Otherwise, check if projectId exists
           if (machine.projectId && machine.projectId.name) {
             return {
               ...machine,
@@ -64,13 +70,9 @@ const MachineCategory = () => {
           }
         });
         setMachines(machinesWithProjects);
-      } else {
-        console.warn('⚠️ API returned success: false', response.data);
-        showToast('Failed to fetch machines', 'error');
       }
     } catch (error) {
-      console.error('❌ Error fetching machines:', error);
-      console.error('Error details:', error.response?.data);
+      console.error('Error fetching machines:', error);
       showToast('Failed to fetch machines', 'error');
     }
   };
@@ -99,20 +101,8 @@ const MachineCategory = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validation
     if (!formData.name.trim()) {
       showToast(`Please enter ${isConsumable ? 'item' : 'machine'} name`, 'error');
-      return;
-    }
-
-    if (isConsumable && !String(formData.quantity).trim()) {
-      showToast('Please enter quantity with unit', 'error');
-      return;
-    }
-
-    if (!isConsumable && (!formData.quantity || formData.quantity <= 0)) {
-      showToast('Please enter valid quantity', 'error');
       return;
     }
 
@@ -125,23 +115,17 @@ const MachineCategory = () => {
         status: isConsumable ? 'available' : formData.status
       };
 
-      console.log('📤 Sending machine data:', newMachine);
       const response = await api.post('/admin/machines', newMachine);
       if (response.data.success) {
-        showToast(`${isConsumable ? 'Consumable item' : 'Machine'} added successfully`, 'success');
+        showToast(`${isConsumable ? 'Consumable item' : isEquipment ? 'Equipment' : 'Machine'} added successfully`, 'success');
         setShowForm(false);
-        setFormData({ name: '', model: '', plateNumber: '', quantity: '', status: 'available', ownershipType: 'own', vendorName: '', machineCategory: '', machinePhoto: '', perDayExpense: 0 });
+        setFormData({ name: '', model: '', plateNumber: '', quantity: '', status: 'available', ownershipType: 'own', vendorName: '', machineCategory: '', machinePhoto: '', perDayExpense: 0, projectId: '' });
         fetchMachines();
       }
     } catch (error) {
-      console.error('❌ Error adding machine:', error);
-      console.error('Error response:', error.response?.data);
-
-      // Show detailed validation errors if available
       const errorMsg = error.response?.data?.errors
         ? `Validation failed: ${error.response.data.errors.map(e => e.message || e).join(', ')}`
         : error.response?.data?.error || `Failed to add ${isConsumable ? 'item' : 'machine'}`;
-
       showToast(errorMsg, 'error');
     } finally {
       setIsSubmitting(false);
@@ -160,17 +144,15 @@ const MachineCategory = () => {
       vendorName: machine.vendorName || '',
       machineCategory: machine.machineCategory || '',
       machinePhoto: machine.machinePhoto || '',
-      perDayExpense: machine.perDayExpense || 0
+      perDayExpense: machine.perDayExpense || 0,
+      projectId: machine.projectId?._id || machine.projectId || ''
     });
     setShowForm(true);
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-
     if (!editingMachine) return;
-
-    // Validation
     if (!formData.name.trim()) {
       showToast(`Please enter ${isConsumable ? 'item' : 'machine'} name`, 'error');
       return;
@@ -187,15 +169,14 @@ const MachineCategory = () => {
 
       const response = await api.put(`/admin/machines/${editingMachine._id}`, updatedMachine);
       if (response.data.success) {
-        showToast(`${isConsumable ? 'Consumable item' : 'Machine'} updated successfully`, 'success');
+        showToast(`${isConsumable ? 'Consumable item' : isEquipment ? 'Equipment' : 'Machine'} updated successfully`, 'success');
         setShowForm(false);
         setEditingMachine(null);
-        setFormData({ name: '', model: '', plateNumber: '', quantity: '', status: 'available', ownershipType: 'own', vendorName: '', machineCategory: '', machinePhoto: '', perDayExpense: 0 });
+        setFormData({ name: '', model: '', plateNumber: '', quantity: '', status: 'available', ownershipType: 'own', vendorName: '', machineCategory: '', machinePhoto: '', perDayExpense: 0, projectId: '' });
         fetchMachines();
       }
     } catch (error) {
       showToast(error.response?.data?.error || `Failed to update ${isConsumable ? 'item' : 'machine'}`, 'error');
-      console.error('Error updating machine:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -206,30 +187,43 @@ const MachineCategory = () => {
       showToast('Please select a project or contractor', 'error');
       return;
     }
-    if (assignAsRental && (!rentalPerDay || rentalPerDay <= 0)) {
-      showToast('Please enter valid rental per day amount', 'error');
+    if (assignAsRental && (!rentalAmount || rentalAmount <= 0)) {
+      showToast(`Please enter valid rental ${rentalType === 'perDay' ? 'per day' : 'per hour'} amount`, 'error');
       return;
     }
+
     try {
       const updateData = {
-        projectId: assignProjectId,
         status: 'in-use',
         assignedAsRental: assignAsRental,
-        assignedRentalPerDay: assignAsRental ? Number(rentalPerDay) : 0
+        assignedRentalPerDay: assignAsRental ? Number(rentalAmount) : 0,
+        rentalType: assignAsRental ? rentalType : 'perDay',
+        assignedAt: new Date().toISOString()
       };
+
+      // Check if assigning to contractor or project
+      if (assignToContractor) {
+        updateData.assignedToContractor = assignProjectId;
+        updateData.projectId = null;
+      } else {
+        updateData.projectId = assignProjectId;
+        updateData.assignedToContractor = null;
+      }
+
       const response = await api.put(`/admin/machines/${selectedMachine._id}`, updateData);
       if (response.data.success) {
         showToast('Machine assigned successfully', 'success');
         setShowAssignModal(false);
         setSelectedMachine(null);
         setAssignProjectId('');
+        setAssignToContractor(false);
         setAssignAsRental(false);
-        setRentalPerDay(0);
+        setRentalAmount(0);
+        setRentalType('perDay');
         fetchMachines();
       }
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to assign machine', 'error');
-      console.error('Error assigning machine:', error);
     }
   };
 
@@ -243,8 +237,42 @@ const MachineCategory = () => {
       }
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to delete machine', 'error');
-      console.error('Error deleting machine:', error);
     }
+  };
+
+  const handleReturn = async (machine) => {
+    const confirmMsg = `Return ${machine.name}?\n\nThis will:\n- Calculate total rental cost\n- Update machine status to "Returned"\n- Create expense entry automatically`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const response = await api.post(`/admin/machines/${machine._id}/return`);
+      if (response.data.success) {
+        const { rentalDetails } = response.data.data;
+        showToast(
+          `Machine returned! Total rent: ₹${rentalDetails.totalRent} (${rentalDetails.days} days @ ₹${rentalDetails.perDayRate}/day)`,
+          'success'
+        );
+        fetchMachines();
+      }
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to return machine', 'error');
+    }
+  };
+
+
+  const handleViewDetails = (machine) => {
+    setSelectedMachine(machine);
+    setShowDetailModal(true);
+  };
+
+  const handleOpenAssignModal = (machine) => {
+    if (machine.status === 'in-use' || machine.status === 'maintenance') {
+      showToast(`Cannot assign machine in "${machine.status}" status`, 'error');
+      return;
+    }
+    setSelectedMachine(machine);
+    setShowAssignModal(true);
   };
 
   const categoryNames = {
@@ -268,9 +296,18 @@ const MachineCategory = () => {
   const isEquipment = category === 'equipment';
   const isBigMachine = category === 'big';
 
+  // Get contractor name for a machine
+  const getContractorName = (machine) => {
+    if (!machine.assignedToContractor) return null;
+    const contractorId = typeof machine.assignedToContractor === 'object'
+      ? machine.assignedToContractor._id
+      : machine.assignedToContractor;
+    const contractor = contractors.find(c => c._id === contractorId);
+    return contractor?.name || 'Unknown Contractor';
+  };
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* Back Button */}
       <button
         onClick={() => navigate('/admin/machines')}
         className="mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-2"
@@ -289,18 +326,14 @@ const MachineCategory = () => {
       {showForm && (
         <form onSubmit={editingMachine ? handleUpdate : handleSubmit} className="mt-5 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Equipment Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {isConsumable ? 'Item Name' : isEquipment ? 'Equipment Name' : isLabEquipment ? 'Equipment Name' : 'Machine Name'}
               </label>
               <input
                 type="text"
-                placeholder={
-                  isConsumable ? "e.g., Cement, Steel Rods" :
-                    isEquipment ? "e.g., Drill Machine, Hammer" :
-                      isLabEquipment ? "e.g., Concrete Tester" :
-                        "e.g., JCB, Crane"
-                }
+                placeholder={isConsumable ? "e.g., Cement, Steel Rods" : isEquipment ? "e.g., Drill Machine, Hammer" : isLabEquipment ? "e.g., Concrete Tester" : "e.g., JCB, Crane"}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
@@ -308,7 +341,8 @@ const MachineCategory = () => {
               />
             </div>
 
-            {!isConsumable && !isLabEquipment && (
+            {/* Ownership Type - Show for Equipment and Big Machines, not for Lab or Consumables */}
+            {(isEquipment || isBigMachine) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ownership Type</label>
                 <select
@@ -322,7 +356,8 @@ const MachineCategory = () => {
               </div>
             )}
 
-            {!isConsumable && (
+            {/* Model - Hide for Equipment */}
+            {!isConsumable && !isEquipment && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Model/Brand</label>
                 <input
@@ -335,6 +370,7 @@ const MachineCategory = () => {
               </div>
             )}
 
+            {/* Plate Number - Only for Big Machines */}
             {isBigMachine && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Plate Number</label>
@@ -348,7 +384,36 @@ const MachineCategory = () => {
               </div>
             )}
 
-            {!isConsumable && !isLabEquipment && formData.ownershipType === 'rented' && (
+            {/* Equipment Category - Show for Equipment */}
+            {isEquipment && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Equipment Category</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Power Tools, Hand Tools"
+                  value={formData.machineCategory}
+                  onChange={(e) => setFormData({ ...formData, machineCategory: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            {/* Machine Category - Only for Big Machines */}
+            {isBigMachine && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Machine Category</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Excavator, Crane, Mixer"
+                  value={formData.machineCategory}
+                  onChange={(e) => setFormData({ ...formData, machineCategory: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            {/* Vendor fields for rented equipment */}
+            {(isEquipment || isBigMachine) && formData.ownershipType === 'rented' && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Name</label>
@@ -375,55 +440,30 @@ const MachineCategory = () => {
               </>
             )}
 
-            {!isConsumable && !isLabEquipment && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Machine Category</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Excavator, Crane, Mixer"
-                  value={formData.machineCategory}
-                  onChange={(e) => setFormData({ ...formData, machineCategory: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
-
-            {!isConsumable && !isLabEquipment && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Machine Photo</label>
+            {/* Equipment Photo */}
+            {(isEquipment || isBigMachine || isLabEquipment) && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {isEquipment ? 'Equipment Photo' : 'Machine Photo'}
+                </label>
                 <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Upload Photo</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePhotoUpload(e.target.files?.[0])}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {formData.machinePhoto && formData.machinePhoto.startsWith('data:') && (
-                      <div className="mt-2">
-                        <img src={formData.machinePhoto} alt="Preview" className="h-20 w-20 object-cover rounded border" />
-                        <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">OR</div>
-                    <div className="pt-4">
-                      <label className="block text-xs text-gray-600 mb-1">Photo URL</label>
-                      <input
-                        type="text"
-                        placeholder="Enter photo URL"
-                        value={formData.machinePhoto && !formData.machinePhoto.startsWith('data:') ? formData.machinePhoto : ''}
-                        onChange={(e) => setFormData({ ...formData, machinePhoto: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handlePhotoUpload(e.target.files?.[0])}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {formData.machinePhoto && formData.machinePhoto.startsWith('data:') && (
+                    <div className="mt-2">
+                      <img src={formData.machinePhoto} alt="Preview" className="h-20 w-20 object-cover rounded border" />
+                      <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
 
+            {/* Quantity */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {isConsumable ? 'Quantity (with unit)' : 'Quantity'}
@@ -438,6 +478,7 @@ const MachineCategory = () => {
               />
             </div>
 
+            {/* Status */}
             {!isConsumable && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -452,166 +493,142 @@ const MachineCategory = () => {
                 </select>
               </div>
             )}
+
+            {/* Project Dropdown */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Project (Optional)</label>
+              <select
+                value={formData.projectId}
+                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">No Project</option>
+                {projects.map(p => (
+                  <option key={p._id} value={p._id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <button
             type="submit"
             className="mt-5 px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={isSubmitting}
           >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                {editingMachine ? `Updating ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}...` : `Adding ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}...`}
-              </span>
-            ) : (
-              editingMachine ? `Update ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}` : `Add ${isConsumable ? 'Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}`
-            )}
+            {isSubmitting ? (editingMachine ? 'Updating...' : 'Adding...') : (editingMachine ? `Update ${isEquipment ? 'Equipment' : 'Machine'}` : `Add ${isEquipment ? 'Equipment' : 'Machine'}`)}
           </button>
         </form>
       )}
 
+      {/* Machines List */}
       <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
         <h2 className="text-xl font-bold text-gray-900 mb-4">
-          {isConsumable ? 'Consumable Goods List' : isLabEquipment ? 'Equipment List' : 'Machines List'}
+          {isConsumable ? 'Consumable Goods List' : isLabEquipment ? 'Equipment List' : isEquipment ? 'Equipment List' : 'Machines List'}
         </h2>
 
-        {/* Mobile View */}
-        <div className="block md:hidden space-y-3">
-          {machines.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <div className="text-4xl mb-3">📦</div>
-              <p className="font-semibold">No {isConsumable ? 'consumable items' : isLabEquipment ? 'equipment' : 'machines'} found</p>
-              <p className="text-sm mt-2">Click "Add {isConsumable ? 'Consumable Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}" above to get started</p>
-            </div>
-          ) : (
-            machines.map(m => (
-              <div key={m._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="font-bold text-gray-900 mb-2">{m.name}</div>
-                <div className="text-sm space-y-1">
-                  {isConsumable && (
-                    <div><span className="font-medium">Quantity:</span> <span className="text-blue-600 font-bold">{m.quantity}</span></div>
-                  )}
-                  {!isConsumable && (
-                    <>
-                      <div><span className="font-medium">Model:</span> {m.model || 'N/A'}</div>
-                      {!isLabEquipment && m.plateNumber && <div><span className="font-medium">Plate:</span> {m.plateNumber}</div>}
-                      <div><span className="font-medium">Assigned Site:</span>
-                        <span className={`font-semibold ${m.projectName === 'Not Assigned' ? 'text-red-600' : 'text-green-600'}`}>
-                          {m.projectName} {m.projectLocation !== '-' && `(${m.projectLocation})`}
-                        </span>
-                      </div>
-                      <div><span className="font-medium">Quantity:</span> {m.quantity}</div>
-                      <div><span className="font-medium">Status:</span>
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${m.status === 'available' ? 'bg-green-100 text-green-800' :
-                          m.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                          {m.status === 'available' ? '🟢 Available' : m.status === 'in-use' ? '🟡 In Use' : '🔴 Maintenance'}
-                        </span>
-                      </div>
-                      {m.assignedAsRental && (
-                        <div><span className="font-medium">Rental:</span> <span className="text-purple-600 font-semibold">₹{m.assignedRentalPerDay}/day</span></div>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => { setSelectedMachine(m); setShowAssignModal(true); }}
-                    className="flex-1 px-3 py-2 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
-                  >
-                    Assign
-                  </button>
-                  <button
-                    onClick={() => handleEdit(m)}
-                    className="flex-1 px-3 py-2 bg-yellow-500 text-white rounded text-sm font-medium hover:bg-yellow-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(m._id)}
-                    className="flex-1 px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
         {/* Desktop View */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="overflow-x-auto">
           {machines.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
               <div className="text-5xl mb-4">📦</div>
               <p className="text-lg font-semibold">No {isConsumable ? 'consumable items' : isLabEquipment ? 'equipment' : 'machines'} found</p>
-              <p className="text-sm mt-2">Click "Add {isConsumable ? 'Consumable Item' : isEquipment ? 'Equipment' : isLabEquipment ? 'Equipment' : 'Machine'}" above to get started</p>
+              <p className="text-sm mt-2">Click "Add {isConsumable ? 'Consumable Item' : isEquipment ? 'Equipment' : 'Machine'}" above to get started</p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-gray-200">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Model</th>
-                  {!isLabEquipment && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Plate Number</th>}
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Assigned Site</th>
+                  {!isEquipment && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Model</th>}
+                  {isBigMachine && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Plate Number</th>}
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Assigned To</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {machines.map(m => (
-                  <tr key={m._id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="px-4 py-3">{m.name}</td>
-                    <td className="px-4 py-3">{m.model || 'N/A'}</td>
-                    {!isLabEquipment && <td className="px-4 py-3">{m.plateNumber || 'N/A'}</td>}
-                    <td className="px-4 py-3">
-                      <span className={`font-semibold ${m.projectName === 'Not Assigned' ? 'text-red-600' : 'text-green-600'}`}>
-                        {m.projectName}
-                        {m.projectLocation !== '-' && <span className="text-xs text-gray-500 block">{m.projectLocation}</span>}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">{m.quantity}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${m.status === 'available' ? 'bg-green-100 text-green-800' :
-                        m.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                        {m.status === 'available' ? '🟢 Available' : m.status === 'in-use' ? '🟡 In Use' : '🔴 Maintenance'}
-                      </span>
-                      {m.assignedAsRental && (
-                        <div className="text-xs text-purple-600 mt-1">Rental: ₹{m.assignedRentalPerDay}/day</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => { setSelectedMachine(m); setShowAssignModal(true); }}
-                          className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                        >
-                          Assign to Project
-                        </button>
-                        <button
-                          onClick={() => handleEdit(m)}
-                          className="px-3 py-1.5 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(m._id)}
-                          className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {machines.map(m => {
+                  const contractorName = getContractorName(m);
+                  const canAssign = m.status !== 'in-use' && m.status !== 'maintenance';
+
+                  return (
+                    <tr key={m._id} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium">{m.name}</td>
+                      {!isEquipment && <td className="px-4 py-3">{m.model || 'N/A'}</td>}
+                      {isBigMachine && <td className="px-4 py-3">{m.plateNumber || 'N/A'}</td>}
+                      <td className="px-4 py-3">
+                        {contractorName ? (
+                          <span className="text-purple-600 font-semibold">👷 {contractorName}</span>
+                        ) : m.projectName !== 'Not Assigned' ? (
+                          <span className="text-green-600 font-semibold">
+                            {m.projectName}
+                            {m.projectLocation !== '-' && <span className="text-xs text-gray-500 block">{m.projectLocation}</span>}
+                          </span>
+                        ) : (
+                          <span className="text-red-600 font-semibold">Not Assigned</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">{m.quantity}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${m.status === 'available' ? 'bg-green-100 text-green-800' :
+                          m.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                          {m.status === 'available' ? '🟢 Available' : m.status === 'in-use' ? '🟡 In Use' : '🔴 Maintenance'}
+                        </span>
+                        {m.assignedAsRental && (
+                          <div className="text-xs text-purple-600 mt-1">
+                            Rental: ₹{m.assignedRentalPerDay}/{m.rentalType === 'perHour' ? 'hr' : 'day'}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleViewDetails(m)}
+                            className="px-3 py-1.5 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+                            title="View Details"
+                          >
+                            👁️
+                          </button>
+                          <button
+                            onClick={() => handleOpenAssignModal(m)}
+                            className={`px-3 py-1.5 rounded text-sm ${canAssign
+                              ? 'bg-blue-500 text-white hover:bg-blue-600'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              }`}
+                            disabled={!canAssign}
+                            title={canAssign ? 'Assign to Project' : `Cannot assign - ${m.status}`}
+                          >
+                            Assign
+                          </button>
+                          {/* Return button - only for rented machines in-use */}
+                          {m.ownershipType === 'rented' && m.status === 'in-use' && (
+                            <button
+                              onClick={() => handleReturn(m)}
+                              className="px-3 py-1.5 bg-orange-500 text-white rounded text-sm hover:bg-orange-600"
+                              title="Return rented machine"
+                            >
+                              Return
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleEdit(m)}
+                            className="px-3 py-1.5 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(m._id)}
+                            className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -619,29 +636,56 @@ const MachineCategory = () => {
       </div>
 
       {/* Assign Machine Modal */}
-      {showAssignModal && (
+      {showAssignModal && selectedMachine && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Assign Machine to Project</h3>
-            <p className="text-gray-600 mb-4">Machine: <strong>{selectedMachine?.name}</strong></p>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Assign Machine</h3>
+            <p className="text-gray-600 mb-4">Machine: <strong>{selectedMachine.name}</strong></p>
+
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Project or Contractor</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assign To</label>
+              <div className="flex gap-4 mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={!assignToContractor}
+                    onChange={() => {
+                      setAssignToContractor(false);
+                      setAssignProjectId('');
+                    }}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm font-medium">Project</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={assignToContractor}
+                    onChange={() => {
+                      setAssignToContractor(true);
+                      setAssignProjectId('');
+                    }}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm font-medium">Contractor</span>
+                </label>
+              </div>
+
               <select
                 value={assignProjectId}
                 onChange={(e) => setAssignProjectId(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Select Project or Contractor</option>
-                <optgroup label="Projects">
-                  {projects.map(p => (
+                <option value="">Select {assignToContractor ? 'Contractor' : 'Project'}</option>
+                {assignToContractor ? (
+                  contractors.map(c => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))
+                ) : (
+                  projects.map(p => (
                     <option key={p._id} value={p._id}>{p.name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Contractors">
-                  {contractors.map(c => (
-                    <option key={c._id} value={c._id}>{c.name} (Contractor)</option>
-                  ))}
-                </optgroup>
+                  ))
+                )}
               </select>
             </div>
 
@@ -658,16 +702,46 @@ const MachineCategory = () => {
             </div>
 
             {assignAsRental && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rental Per Day (₹)</label>
-                <input
-                  type="number"
-                  placeholder="Enter rental cost per day"
-                  value={rentalPerDay}
-                  onChange={(e) => setRentalPerDay(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Rental Type</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="perDay"
+                        checked={rentalType === 'perDay'}
+                        onChange={(e) => setRentalType(e.target.value)}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm">Per Day</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="perHour"
+                        checked={rentalType === 'perHour'}
+                        onChange={(e) => setRentalType(e.target.value)}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm">Per Hour</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rental Amount (₹/{rentalType === 'perDay' ? 'day' : 'hour'})
+                  </label>
+                  <input
+                    type="number"
+                    placeholder={`Enter rental cost ${rentalType === 'perDay' ? 'per day' : 'per hour'}`}
+                    value={rentalAmount}
+                    onChange={(e) => setRentalAmount(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </>
             )}
 
             <div className="flex gap-3">
@@ -678,10 +752,138 @@ const MachineCategory = () => {
                 Assign
               </button>
               <button
-                onClick={() => { setShowAssignModal(false); setSelectedMachine(null); setAssignProjectId(''); setAssignAsRental(false); setRentalPerDay(0); }}
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedMachine(null);
+                  setAssignProjectId('');
+                  setAssignToContractor(false);
+                  setAssignAsRental(false);
+                  setRentalAmount(0);
+                  setRentalType('perDay');
+                }}
                 className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Machine Detail Modal */}
+      {showDetailModal && selectedMachine && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-0 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedMachine.name}</h3>
+                <p className="text-sm text-gray-500">{categoryNames[category]} Details</p>
+              </div>
+              <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700 text-xl">✕</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                {selectedMachine.model && (
+                  <div>
+                    <div className="text-sm text-gray-500">Model</div>
+                    <div className="font-medium">{selectedMachine.model}</div>
+                  </div>
+                )}
+                {selectedMachine.plateNumber && (
+                  <div>
+                    <div className="text-sm text-gray-500">Plate Number</div>
+                    <div className="font-medium">{selectedMachine.plateNumber}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-sm text-gray-500">Quantity</div>
+                  <div className="font-medium">{selectedMachine.quantity}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Status</div>
+                  <div className="font-medium capitalize">{selectedMachine.status}</div>
+                </div>
+                {selectedMachine.ownershipType && (
+                  <div>
+                    <div className="text-sm text-gray-500">Ownership</div>
+                    <div className="font-medium capitalize">{selectedMachine.ownershipType}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Assignment Info */}
+              <div className="border-t pt-4">
+                <h4 className="font-bold text-gray-900 mb-3">Assignment Information</h4>
+                <div className="space-y-3">
+                  {getContractorName(selectedMachine) ? (
+                    <div className="p-3 bg-purple-50 rounded-lg">
+                      <div className="text-sm text-purple-600 font-medium">Assigned to Contractor</div>
+                      <div className="font-bold text-purple-900">👷 {getContractorName(selectedMachine)}</div>
+                    </div>
+                  ) : selectedMachine.projectName !== 'Not Assigned' ? (
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <div className="text-sm text-green-600 font-medium">Assigned to Project</div>
+                      <div className="font-bold text-green-900">{selectedMachine.projectName}</div>
+                      {selectedMachine.projectLocation !== '-' && (
+                        <div className="text-sm text-green-700">📍 {selectedMachine.projectLocation}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="text-gray-500">Not assigned to any project or contractor</div>
+                    </div>
+                  )}
+
+                  {selectedMachine.assignedAt && (
+                    <div>
+                      <div className="text-sm text-gray-500">Assignment Date/Time</div>
+                      <div className="font-medium">
+                        {new Date(selectedMachine.assignedAt).toLocaleString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedMachine.assignedAsRental && (
+                    <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="text-sm text-yellow-700 font-medium">Rental Information</div>
+                      <div className="font-bold text-yellow-900">
+                        ₹{selectedMachine.assignedRentalPerDay} / {selectedMachine.rentalType === 'perHour' ? 'Hour' : 'Day'}
+                      </div>
+                      <div className="text-xs text-yellow-700 mt-1">
+                        This machine is generating rental income
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Photo */}
+              {selectedMachine.machinePhoto && (
+                <div className="border-t pt-4">
+                  <h4 className="font-bold text-gray-900 mb-3">Photo</h4>
+                  <img
+                    src={selectedMachine.machinePhoto}
+                    alt={selectedMachine.name}
+                    className="w-full max-h-64 object-contain rounded-lg border"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 bg-white">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -19,16 +19,19 @@ const Contractors = () => {
         distanceValue: '',
         distanceUnit: 'km',
         expensePerUnit: '',
-        assignedProjectId: ''
+        assignedProjectId: '',
+        status: 'pending'
     });
     const [paymentData, setPaymentData] = useState({
         date: new Date().toISOString().split('T')[0],
         amount: '',
         remark: '',
         machineRent: 0,
-        deductRent: false
+        deductRent: false,
+        paymentMode: 'cash'
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchContractors();
@@ -83,7 +86,8 @@ const Contractors = () => {
                         contractorId: contractor._id,
                         totalPaid,
                         totalPayable,
-                        pendingAmount,
+                        pendingAmount: contractor.pendingAmount || 0,
+                        advancePayment: contractor.advancePayment || 0,
                         rentedMachinesCount: rentedMachines.length
                     };
                 });
@@ -173,7 +177,8 @@ const Contractors = () => {
             amount: '',
             remark: '',
             machineRent,
-            deductRent: false
+            deductRent: false,
+            paymentMode: 'cash'
         });
         setActiveModal('payment');
     };
@@ -210,6 +215,7 @@ const Contractors = () => {
                 contractorName: selectedContractor.name,
                 date: paymentData.date,
                 amount: finalAmount,
+                paymentMode: paymentData.paymentMode,
                 remark: paymentData.remark,
                 machineRent: paymentData.machineRent,
                 rentDeducted: paymentData.deductRent
@@ -220,7 +226,7 @@ const Contractors = () => {
                 showToast('Payment recorded successfully', 'success');
                 setActiveModal(null);
                 setSelectedContractor(null);
-                setPaymentData({ date: new Date().toISOString().split('T')[0], amount: '', remark: '', machineRent: 0, deductRent: false });
+                setPaymentData({ date: new Date().toISOString().split('T')[0], amount: '', remark: '', machineRent: 0, deductRent: false, paymentMode: 'cash' });
             }
         } catch (error) {
             showToast(error.response?.data?.error || 'Failed to record payment', 'error');
@@ -281,6 +287,19 @@ const Contractors = () => {
         }
     };
 
+    // Filter contractors based on search query
+    const getFilteredContractors = () => {
+        if (!searchQuery.trim()) return contractors;
+        const query = searchQuery.toLowerCase();
+        return contractors.filter(c =>
+            c.name.toLowerCase().includes(query) ||
+            c.mobile.toLowerCase().includes(query) ||
+            (c.address && c.address.toLowerCase().includes(query))
+        );
+    };
+
+    const filteredContractors = getFilteredContractors();
+
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-6">
@@ -291,6 +310,13 @@ const Contractors = () => {
                 >
                     {showForm ? 'Cancel' : 'Create Contract'}
                 </button>
+                <input
+                    type="text"
+                    placeholder="Search contractors..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+                />
             </div>
 
             {showForm && (
@@ -400,6 +426,18 @@ const Contractors = () => {
                         </div>
                     </div>
 
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <select
+                            value={formData.status}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="pending">Pending</option>
+                            <option value="complete">Complete</option>
+                        </select>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={isSubmitting}
@@ -409,19 +447,26 @@ const Contractors = () => {
                         {isSubmitting ? 'Processing...' : (editingContractor ? 'Update Contractor' : 'Create Contractor')}
                     </button>
                 </form>
-            )}
+            )
+            }
 
             <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Contractors List</h2>
 
                 {/* Mobile View */}
                 <div className="block md:hidden space-y-3">
-                    {contractors.map(contractor => (
+                    {filteredContractors.map(contractor => (
                         <div key={contractor._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                             <div className="font-bold text-gray-900 mb-2">{contractor.name}</div>
                             <div className="text-sm space-y-1 mb-3">
                                 <div><span className="font-medium">Mobile:</span> {contractor.mobile}</div>
                                 <div><span className="font-medium">Assigned Project:</span> {contractor.assignedProjects?.map(p => p.name).join(', ') || '-'}</div>
+                                <div>
+                                    <span className="font-medium">Status:</span>
+                                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${contractor.status === 'complete' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                        {contractor.status ? contractor.status.charAt(0).toUpperCase() + contractor.status.slice(1) : 'Pending'}
+                                    </span>
+                                </div>
                                 <div><span className="font-medium">Address:</span> {contractor.address}</div>
                                 <div><span className="font-medium">Distance:</span> {contractor.distanceValue} {contractor.distanceUnit}</div>
                                 <div><span className="font-medium">Expense:</span> ₹{contractor.expensePerUnit}/{contractor.distanceUnit}</div>
@@ -433,6 +478,10 @@ const Contractors = () => {
                                     <div>
                                         <span className="text-xs text-gray-600">Total Paid</span>
                                         <span className="text-green-600 font-bold">₹{contractorStats[contractor._id]?.totalPaid?.toLocaleString() || 0}</span>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="text-xs text-gray-600">Advance</span>
+                                        <span className="text-yellow-600 font-bold ml-2">₹{contractorStats[contractor._id]?.advancePayment?.toLocaleString() || 0}</span>
                                     </div>
                                     <div className="col-span-2">
                                         <span className="text-xs text-gray-600">Pending</span>
@@ -480,14 +529,16 @@ const Contractors = () => {
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Address</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Distance</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Expense</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Payable</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Paid</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Advance</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pending</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {contractors.map(contractor => (
+                            {filteredContractors.map(contractor => (
                                 <tr key={contractor._id} className="border-b border-gray-200 hover:bg-gray-50">
                                     <td className="px-4 py-3">{contractor.name}</td>
                                     {/* <td className="px-4 py-3">{contractor.mobile}</td> Original Mobile Column Removed */}
@@ -496,10 +547,18 @@ const Contractors = () => {
                                     <td className="px-4 py-3">{contractor.distanceValue} {contractor.distanceUnit}</td>
                                     <td className="px-4 py-3">₹{contractor.expensePerUnit}/{contractor.distanceUnit}</td>
                                     <td className="px-4 py-3">
+                                        <span className={`px-2 py-1 text-xs rounded-full ${contractor.status === 'complete' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                            {contractor.status ? contractor.status.charAt(0).toUpperCase() + contractor.status.slice(1) : 'Pending'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
                                         <span className="text-blue-600 font-semibold">₹{contractorStats[contractor._id]?.totalPayable?.toLocaleString() || 0}</span>
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="text-green-600 font-semibold">₹{contractorStats[contractor._id]?.totalPaid?.toLocaleString() || 0}</span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="text-yellow-600 font-semibold">₹{contractorStats[contractor._id]?.advancePayment?.toLocaleString() || 0}</span>
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="text-red-600 font-semibold">₹{contractorStats[contractor._id]?.pendingAmount?.toLocaleString() || 0}</span>
@@ -541,206 +600,227 @@ const Contractors = () => {
             </div>
 
             {/* View Contractor Details Modal */}
-            {selectedContractor && activeModal === 'details' && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold text-gray-900">Contractor Details</h3>
+            {
+                selectedContractor && activeModal === 'details' && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-gray-900">Contractor Details</h3>
+                                <button
+                                    onClick={() => {
+                                        setSelectedContractor(null);
+                                        setActiveModal(null);
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-3 mb-6">
+                                <div className="p-3 bg-gray-50 rounded">
+                                    <span className="font-medium text-gray-700">Name:</span> {selectedContractor.name}
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded">
+                                    <span className="font-medium text-gray-700">Mobile:</span> {selectedContractor.mobile}
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded">
+                                    <span className="font-medium text-gray-700">Address:</span> {selectedContractor.address}
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded">
+                                    <span className="font-medium text-gray-700">Distance:</span> {selectedContractor.distanceValue} {selectedContractor.distanceUnit}
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded">
+                                    <span className="font-medium text-gray-700">Expense per {selectedContractor.distanceUnit}:</span> ₹{selectedContractor.expensePerUnit}
+                                </div>
+                            </div>
+
+                            <h4 className="text-lg font-bold text-gray-900 mb-3">Assigned Machines</h4>
+                            <div className="mb-6">
+                                {assignedMachines.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b-2 border-gray-200">
+                                                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Machine Name</th>
+                                                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
+                                                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Rent/Day</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {assignedMachines.map(machine => (
+                                                    <tr key={machine._id} className="border-b border-gray-200">
+                                                        <td className="px-3 py-2">{machine.name}</td>
+                                                        <td className="px-3 py-2">{machine.category}</td>
+                                                        <td className="px-3 py-2">₹{machine.assignedRentalPerDay || 0}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
+                                            <span className="font-medium text-blue-900">Total Rent/Day:</span>
+                                            <span className="text-blue-700 font-bold ml-2">
+                                                ₹{assignedMachines.reduce((sum, m) => sum + (m.assignedRentalPerDay || 0), 0)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500 text-sm">No machines assigned</p>
+                                )}
+                            </div>
+
+                            <h4 className="text-lg font-bold text-gray-900 mb-3">Payment History</h4>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b-2 border-gray-200">
+                                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
+                                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Amount</th>
+                                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Machine Rent</th>
+                                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Remark</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {contractorPayments.map(payment => (
+                                            <tr key={payment._id} className="border-b border-gray-200">
+                                                <td className="px-3 py-2">{new Date(payment.date).toLocaleDateString()}</td>
+                                                <td className="px-3 py-2">₹{payment.amount}</td>
+                                                <td className="px-3 py-2">₹{payment.machineRent}</td>
+                                                <td className="px-3 py-2">{payment.remark || '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {contractorPayments.length === 0 && (
+                                    <p className="text-center text-gray-500 py-4">No payment history</p>
+                                )}
+                            </div>
+
                             <button
                                 onClick={() => {
                                     setSelectedContractor(null);
                                     setActiveModal(null);
                                 }}
-                                className="text-gray-500 hover:text-gray-700"
+                                className="mt-4 w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
                             >
-                                ✕
+                                Close
                             </button>
                         </div>
-
-                        <div className="space-y-3 mb-6">
-                            <div className="p-3 bg-gray-50 rounded">
-                                <span className="font-medium text-gray-700">Name:</span> {selectedContractor.name}
-                            </div>
-                            <div className="p-3 bg-gray-50 rounded">
-                                <span className="font-medium text-gray-700">Mobile:</span> {selectedContractor.mobile}
-                            </div>
-                            <div className="p-3 bg-gray-50 rounded">
-                                <span className="font-medium text-gray-700">Address:</span> {selectedContractor.address}
-                            </div>
-                            <div className="p-3 bg-gray-50 rounded">
-                                <span className="font-medium text-gray-700">Distance:</span> {selectedContractor.distanceValue} {selectedContractor.distanceUnit}
-                            </div>
-                            <div className="p-3 bg-gray-50 rounded">
-                                <span className="font-medium text-gray-700">Expense per {selectedContractor.distanceUnit}:</span> ₹{selectedContractor.expensePerUnit}
-                            </div>
-                        </div>
-
-                        <h4 className="text-lg font-bold text-gray-900 mb-3">Assigned Machines</h4>
-                        <div className="mb-6">
-                            {assignedMachines.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="border-b-2 border-gray-200">
-                                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Machine Name</th>
-                                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Category</th>
-                                                <th className="px-3 py-2 text-left font-semibold text-gray-700">Rent/Day</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {assignedMachines.map(machine => (
-                                                <tr key={machine._id} className="border-b border-gray-200">
-                                                    <td className="px-3 py-2">{machine.name}</td>
-                                                    <td className="px-3 py-2">{machine.category}</td>
-                                                    <td className="px-3 py-2">₹{machine.assignedRentalPerDay || 0}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
-                                        <span className="font-medium text-blue-900">Total Rent/Day:</span>
-                                        <span className="text-blue-700 font-bold ml-2">
-                                            ₹{assignedMachines.reduce((sum, m) => sum + (m.assignedRentalPerDay || 0), 0)}
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <p className="text-gray-500 text-sm">No machines assigned</p>
-                            )}
-                        </div>
-
-                        <h4 className="text-lg font-bold text-gray-900 mb-3">Payment History</h4>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b-2 border-gray-200">
-                                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
-                                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Amount</th>
-                                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Machine Rent</th>
-                                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Remark</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {contractorPayments.map(payment => (
-                                        <tr key={payment._id} className="border-b border-gray-200">
-                                            <td className="px-3 py-2">{new Date(payment.date).toLocaleDateString()}</td>
-                                            <td className="px-3 py-2">₹{payment.amount}</td>
-                                            <td className="px-3 py-2">₹{payment.machineRent}</td>
-                                            <td className="px-3 py-2">{payment.remark || '-'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {contractorPayments.length === 0 && (
-                                <p className="text-center text-gray-500 py-4">No payment history</p>
-                            )}
-                        </div>
-
-                        <button
-                            onClick={() => {
-                                setSelectedContractor(null);
-                                setActiveModal(null);
-                            }}
-                            className="mt-4 w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
-                        >
-                            Close
-                        </button>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Payment Modal */}
-            {activeModal === 'payment' && selectedContractor && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Payment for {selectedContractor.name}</h3>
+            {
+                activeModal === 'payment' && selectedContractor && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">Payment for {selectedContractor.name}</h3>
 
-                        <form onSubmit={handlePaymentSubmit}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                                    <input
-                                        type="date"
-                                        value={paymentData.date}
-                                        onChange={(e) => setPaymentData({ ...paymentData, date: e.target.value })}
-                                        required
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
+                            <form onSubmit={handlePaymentSubmit}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                                        <input
+                                            type="date"
+                                            value={paymentData.date}
+                                            onChange={(e) => setPaymentData({ ...paymentData, date: e.target.value })}
+                                            required
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="Enter payment amount"
+                                            value={paymentData.amount}
+                                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                                            required
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Machine Rent (Auto-fetched)</label>
+                                        <input
+                                            type="number"
+                                            value={paymentData.machineRent}
+                                            readOnly
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
+                                        <select
+                                            value={paymentData.paymentMode}
+                                            onChange={(e) => setPaymentData({ ...paymentData, paymentMode: e.target.value })}
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="cash">💵 Cash</option>
+                                            <option value="upi">📱 UPI</option>
+                                            <option value="bank">🏦 Bank Transfer</option>
+                                            <option value="check">📝 Check</option>
+                                            <option value="other">🔹 Other</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="md:col-span-2">
+                                        <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                                            <input
+                                                type="checkbox"
+                                                id="deductRent"
+                                                checked={paymentData.deductRent}
+                                                onChange={(e) => setPaymentData({ ...paymentData, deductRent: e.target.checked })}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                            <label htmlFor="deductRent" className="ml-2 text-sm font-medium text-gray-700">
+                                                Deduct machine rent from payment (Final: ₹{paymentData.deductRent ? (Number(paymentData.amount || 0) - paymentData.machineRent) : (paymentData.amount || 0)})
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Remark</label>
+                                        <textarea
+                                            placeholder="Enter remark (optional)"
+                                            value={paymentData.remark}
+                                            onChange={(e) => setPaymentData({ ...paymentData, remark: e.target.value })}
+                                            rows="3"
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
-                                    <input
-                                        type="number"
-                                        placeholder="Enter payment amount"
-                                        value={paymentData.amount}
-                                        onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
-                                        required
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium flex justify-center items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+                                    >
+                                        {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+                                        {isSubmitting ? 'Processing...' : 'Pay'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveModal(null);
+                                            setSelectedContractor(null);
+                                            setPaymentData({ date: new Date().toISOString().split('T')[0], amount: '', remark: '', machineRent: 0, deductRent: false, paymentMode: 'cash' });
+                                        }}
+                                        className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                                    >
+                                        Cancel
+                                    </button>
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Machine Rent (Auto-fetched)</label>
-                                    <input
-                                        type="number"
-                                        value={paymentData.machineRent}
-                                        readOnly
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-                                    />
-                                </div>
-
-                                <div className="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        id="deductRent"
-                                        checked={paymentData.deductRent}
-                                        onChange={(e) => setPaymentData({ ...paymentData, deductRent: e.target.checked })}
-                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                    />
-                                    <label htmlFor="deductRent" className="ml-2 text-sm font-medium text-gray-700">
-                                        Deduct machine rent from payment (Final: ₹{paymentData.deductRent ? (Number(paymentData.amount || 0) - paymentData.machineRent) : (paymentData.amount || 0)})
-                                    </label>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Remark</label>
-                                    <textarea
-                                        placeholder="Enter remark (optional)"
-                                        value={paymentData.remark}
-                                        onChange={(e) => setPaymentData({ ...paymentData, remark: e.target.value })}
-                                        rows="3"
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium flex justify-center items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
-                                >
-                                    {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
-                                    {isSubmitting ? 'Processing...' : 'Pay'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setActiveModal(null);
-                                        setSelectedContractor(null);
-                                        setPaymentData({ date: new Date().toISOString().split('T')[0], amount: '', remark: '', machineRent: 0 });
-                                    }}
-                                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

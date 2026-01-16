@@ -210,7 +210,16 @@ const Payment = () => {
                 <div className="text-sm space-y-1">
                   <div><span className="font-medium">Amount:</span> ₹{p.amount?.toLocaleString()}</div>
                   <div><span className="font-medium">Deduction:</span> <span className="text-red-600">₹{p.deduction?.toLocaleString()}</span></div>
-                  <div><span className="font-medium">Advance:</span> <span className="text-orange-600">₹{p.advance?.toLocaleString()}</span></div>
+                  <div>
+                    <span className="font-medium">Advance:</span>
+                    {p.advance > 0 ? (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                        ADVANCE: ₹{p.advance?.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500 ml-1">₹0</span>
+                    )}
+                  </div>
                   <div><span className="font-medium">Final:</span> <span className="text-green-600 font-bold">₹{p.finalAmount?.toLocaleString()}</span></div>
                   <div><span className="font-medium">Total Paid:</span> <span className="text-blue-600 font-bold">₹{((p.amount || 0) + (p.advance || 0) - (p.deduction || 0)).toLocaleString()}</span></div>
                   <div><span className="font-medium">Mode:</span> <span className="capitalize">{p.paymentMode}</span></div>
@@ -262,7 +271,15 @@ const Payment = () => {
                     <td className="px-4 py-3 font-medium">{p.labourName}</td>
                     <td className="px-4 py-3">₹{p.amount?.toLocaleString()}</td>
                     <td className="px-4 py-3 text-red-600">₹{p.deduction?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-orange-600">₹{p.advance?.toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      {p.advance > 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          ₹{p.advance?.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-bold text-green-600">₹{p.finalAmount?.toLocaleString()}</td>
                     <td className="px-4 py-3 font-bold text-blue-600">₹{((p.amount || 0) + (p.advance || 0) - (p.deduction || 0)).toLocaleString()}</td>
                     <td className="px-4 py-3 capitalize">{p.paymentMode}</td>

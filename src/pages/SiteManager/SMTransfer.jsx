@@ -237,7 +237,8 @@ const SMTransfer = () => {
                     {t.status}
                   </span>
                 </div>
-                <div><span className="font-medium">Date:</span> {new Date(t.createdAt).toLocaleDateString()}</div>
+                <div><span className="font-medium">Requested By:</span> {t.requestedBy?.name || 'N/A'}</div>
+                <div><span className="font-medium">Date & Time:</span> {new Date(t.createdAt).toLocaleDateString()} {new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
           ))}
@@ -252,7 +253,8 @@ const SMTransfer = () => {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">From</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">To</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Requested By</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date & Time</th>
               </tr>
             </thead>
             <tbody>
@@ -267,7 +269,11 @@ const SMTransfer = () => {
                       {t.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3">{new Date(t.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 font-medium text-gray-600">{t.requestedBy?.name || '-'}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm">{new Date(t.createdAt).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-500">{new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </td>
                 </tr>
               ))}
             </tbody>

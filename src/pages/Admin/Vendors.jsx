@@ -10,8 +10,16 @@ const Vendors = () => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMode, setPaymentMode] = useState('cash');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentTime, setPaymentTime] = useState(new Date().toTimeString().split(' ')[0].slice(0, 5));
+  const [paymentRemarks, setPaymentRemarks] = useState('');
+  const [isAdvance, setIsAdvance] = useState(false);
+  const [paymentSlip, setPaymentSlip] = useState(null);
+  const [vendorPayments, setVendorPayments] = useState([]);
   const [formData, setFormData] = useState({ name: '', contact: '', email: '', address: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchVendors();
@@ -44,8 +52,9 @@ const Vendors = () => {
 
     // Use actual vendor model data instead of calculating
     const stats = {
-      totalSupplied: vendor.totalSupplied || 0,  // From vendor model
-      pendingAmount: vendor.pendingAmount || 0,  // From vendor model
+      totalSupplied: vendor.totalSupplied || 0,
+      pendingAmount: vendor.pendingAmount || 0,
+      advancePayment: vendor.advancePayment || 0,
       totalPaid: (vendor.totalSupplied || 0) - (vendor.pendingAmount || 0),
       totalItems,
       recentSupplies
@@ -140,21 +149,52 @@ const Vendors = () => {
     }
 
     const pendingAmount = getVendorStats(selectedVendor).pendingAmount;
-    if (parseFloat(paymentAmount) > pendingAmount) {
-      showToast(`Payment amount cannot exceed pending amount (₹${pendingAmount.toLocaleString()})`, 'error');
-      return;
-    }
+
+    // Allow advance payment even if it exceeds pending
+    // if (parseFloat(paymentAmount) > pendingAmount && !isAdvance) {
+    //   showToast(`Payment amount cannot exceed pending amount (₹${pendingAmount.toLocaleString()})`, 'error');
+    //   return;
+    // }
 
     try {
-      const response = await api.post('/admin/vendors/payment', {
-        vendorId: selectedVendor._id,
-        amount: parseFloat(paymentAmount)
+      const combinedDate = new Date(`${paymentDate}T${paymentTime}`);
+
+      const formData = new FormData();
+      formData.append('vendorId', selectedVendor._id);
+      formData.append('amount', parseFloat(paymentAmount));
+      formData.append('paymentMode', paymentMode);
+      formData.append('date', combinedDate.toISOString());
+      formData.append('remarks', paymentRemarks);
+
+      // Calculate if payment creates advance
+      const paymentAmt = parseFloat(paymentAmount);
+      if (paymentAmt > pendingAmount && !isAdvance) {
+        // Payment exceeds pending - mark excess as advance
+        formData.append('isAdvance', true);
+        formData.append('advanceAmount', paymentAmt - pendingAmount);
+      } else {
+        formData.append('isAdvance', isAdvance);
+        if (isAdvance) {
+          formData.append('advanceAmount', paymentAmt);
+        }
+      }
+
+      if (paymentSlip) {
+        formData.append('receipt', paymentSlip);
+      }
+
+      const response = await api.post('/admin/vendors/payment', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (response.data.success) {
         showToast('Payment recorded successfully', 'success');
         setShowPaymentModal(false);
         setPaymentAmount('');
+        setPaymentRemarks('');
+        setIsAdvance(false);
+        setPaymentMode('cash');
+        setPaymentSlip(null);
         setSelectedVendor(null);
         fetchVendors();
       }
@@ -163,6 +203,19 @@ const Vendors = () => {
       console.error('Error recording payment:', error);
     }
   };
+
+  // Filter vendors based on search query
+  const getFilteredVendors = () => {
+    if (!searchQuery.trim()) return vendors;
+    const query = searchQuery.toLowerCase();
+    return vendors.filter(v =>
+      v.name.toLowerCase().includes(query) ||
+      v.contact.toLowerCase().includes(query) ||
+      (v.email && v.email.toLowerCase().includes(query))
+    );
+  };
+
+  const filteredVendors = getFilteredVendors();
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -183,6 +236,13 @@ const Vendors = () => {
         >
           🔄 Refresh Data
         </button>
+        <input
+          type="text"
+          placeholder="Search vendors..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+        />
       </div>
 
       {showForm && (
@@ -263,7 +323,7 @@ const Vendors = () => {
 
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
-          {vendors.map(v => (
+          {filteredVendors.map(v => (
             <div key={v._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="font-bold text-gray-900 mb-2">{v.name}</div>
               <div className="text-sm space-y-1">
@@ -274,6 +334,7 @@ const Vendors = () => {
                 <div><span className="font-medium">Total Items:</span> <span className="text-blue-600 font-bold">{getVendorStats(v).totalItems}</span></div>
                 <div><span className="font-medium">Recent Supplies:</span> <span className="text-purple-600 font-bold">{getVendorStats(v).recentSupplies} (30 days)</span></div>
                 <div><span className="font-medium">Total Supplied:</span> <span className="text-green-600 font-bold">₹{getVendorStats(v).totalSupplied.toLocaleString()}</span></div>
+                <div><span className="font-medium">Advance Paid:</span> <span className="text-yellow-600 font-bold">₹{getVendorStats(v).advancePayment.toLocaleString()}</span></div>
                 <div><span className="font-medium">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(v).pendingAmount.toLocaleString()}</span></div>
                 <div><span className="font-medium">Total Paid:</span> <span className="text-blue-600 font-bold">₹{getVendorStats(v).totalPaid.toLocaleString()}</span></div>
               </div>
@@ -317,12 +378,13 @@ const Vendors = () => {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Items</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Recent Supplies</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Supplied</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Advance</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pending Amount</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {vendors.map(v => (
+              {filteredVendors.map(v => (
                 <tr key={v._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-sm">{v._id?.slice(-8) || 'N/A'}</td>
                   <td className="px-4 py-3 font-medium">{v.name}</td>
@@ -330,6 +392,7 @@ const Vendors = () => {
                   <td className="px-4 py-3 text-blue-600 font-bold">{getVendorStats(v).totalItems}</td>
                   <td className="px-4 py-3 text-purple-600 font-bold">{getVendorStats(v).recentSupplies}</td>
                   <td className="px-4 py-3 text-green-600 font-bold">₹{getVendorStats(v).totalSupplied.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-yellow-600 font-bold">₹{getVendorStats(v).advancePayment.toLocaleString()}</td>
                   <td className="px-4 py-3 text-red-600 font-bold">₹{getVendorStats(v).pendingAmount.toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
@@ -370,111 +433,168 @@ const Vendors = () => {
         </div>
       </div>
 
-      {/* View Vendor Modal */}
-      {selectedVendor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Vendor Details</h3>
-              <button
-                onClick={() => setSelectedVendor(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Vendor ID:</span> {selectedVendor.vendorId || 'N/A'}
-              </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Name:</span> {selectedVendor.name}
-              </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Contact:</span> {selectedVendor.contact}
-              </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Email:</span> {selectedVendor.email || 'N/A'}
-              </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Address:</span> {selectedVendor.address || 'N/A'}
-              </div>
-              <div className="p-3 bg-blue-50 rounded">
-                <span className="font-medium text-blue-700">Total Items Supplied:</span> <span className="text-blue-600 font-bold">{getVendorStats(selectedVendor).totalItems}</span>
-              </div>
-              <div className="p-3 bg-purple-50 rounded">
-                <span className="font-medium text-purple-700">Recent Supplies (30 days):</span> <span className="text-purple-600 font-bold">{getVendorStats(selectedVendor).recentSupplies}</span>
-              </div>
-              <div className="p-3 bg-green-50 rounded">
-                <span className="font-medium text-green-700">Total Supplied Value:</span> <span className="text-green-600 font-bold">₹{getVendorStats(selectedVendor).totalSupplied.toLocaleString()}</span>
-              </div>
-              <div className="p-3 bg-red-50 rounded">
-                <span className="font-medium text-red-700">Pending Amount:</span> <span className="text-red-600 font-bold">₹{getVendorStats(selectedVendor).pendingAmount.toLocaleString()}</span>
-              </div>
-              <div className="p-3 bg-blue-50 rounded">
-                <span className="font-medium text-blue-700">Total Paid:</span> <span className="text-blue-600 font-bold">₹{getVendorStats(selectedVendor).totalPaid.toLocaleString()}</span>
-              </div>
-
-              {/* Stock Details */}
-              <div className="mt-4">
-                <h4 className="font-medium text-gray-700 mb-2">Recent Stock Supplies</h4>
-                <div className="max-h-40 overflow-y-auto space-y-2">
-                  {stocks.filter(s =>
-                    typeof s.vendorId === 'object' ? s.vendorId._id === selectedVendor._id : s.vendorId === selectedVendor._id
-                  ).slice(0, 5).map(stock => (
-                    <div key={stock._id} className="p-2 bg-gray-50 rounded text-sm">
-                      <div className="font-medium">{stock.materialName}</div>
-                      <div className="text-gray-600">{stock.quantity} {stock.unit} - ₹{stock.totalPrice?.toLocaleString()}</div>
-                      <div className="text-xs text-gray-500">{new Date(stock.createdAt).toLocaleDateString()}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setSelectedVendor(null)}
-              className="mt-4 w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+      {/* View Vendor Modal with Tabs */}
+      {selectedVendor && !showPaymentModal && (
+        <VendorDetailModal
+          vendor={selectedVendor}
+          onClose={() => setSelectedVendor(null)}
+          stats={getVendorStats(selectedVendor)}
+          stocks={stocks.filter(s =>
+            typeof s.vendorId === 'object' ? s.vendorId._id === selectedVendor._id : s.vendorId === selectedVendor._id
+          )}
+        />
       )}
 
       {/* Payment Modal */}
       {showPaymentModal && selectedVendor && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold mb-4">Record Payment</h3>
-            <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">Vendor: <span className="font-bold text-gray-900">{selectedVendor.name}</span></p>
-                <p className="text-sm text-gray-600 mt-1">Total Supplied: <span className="font-bold text-green-600">₹{getVendorStats(selectedVendor).totalSupplied.toLocaleString()}</span></p>
-                <p className="text-sm text-gray-600 mt-1">Pending: <span className="font-bold text-red-600">₹{getVendorStats(selectedVendor).pendingAmount.toLocaleString()}</span></p>
-                <p className="text-sm text-gray-600 mt-1">Total Paid: <span className="font-bold text-blue-600">₹{getVendorStats(selectedVendor).totalPaid.toLocaleString()}</span></p>
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden">
+            {/* Header */}
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-800">Vendor Payment Form</h3>
+              <button
+                onClick={() => { setShowPaymentModal(false); setPaymentAmount(''); setSelectedVendor(null); }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Vendor Card */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 mb-6 flex justify-between items-center">
+                <div>
+                  <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Vendor Details</p>
+                  <p className="text-lg font-bold text-gray-900">{selectedVendor.name}</p>
+                  <p className="text-sm text-gray-600">{selectedVendor.contact}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Pending Balance</p>
+                  <p className="text-2xl font-bold text-red-600">₹{getVendorStats(selectedVendor).pendingAmount.toLocaleString()}</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Payment Amount</label>
-                <input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Amount (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-500 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                      <input
+                        type="time"
+                        value={paymentTime}
+                        onChange={(e) => setPaymentTime(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                    <textarea
+                      value={paymentRemarks}
+                      onChange={(e) => setPaymentRemarks(e.target.value)}
+                      placeholder="Optional notes..."
+                      rows="3"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                    <select
+                      value={paymentMode}
+                      onChange={(e) => setPaymentMode(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="cash">💵 Cash</option>
+                      <option value="upi">📱 UPI</option>
+                      <option value="bank_transfer">🏦 Bank Transfer</option>
+                      <option value="check">🎫 Check</option>
+                      <option value="other">⚪ Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Slip</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer relative">
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => setPaymentSlip(e.target.files[0])}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <div className="text-gray-500">
+                        {paymentSlip ? (
+                          <div className="flex items-center justify-center gap-2 text-green-600 font-medium">
+                            <span>📄</span> {paymentSlip.name}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-2xl block mb-1">📎</span>
+                            <span className="text-sm">Click to upload slip</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={isAdvance}
+                        onChange={(e) => setIsAdvance(e.target.checked)}
+                        className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+                      />
+                      <div>
+                        <span className="block text-sm font-bold text-gray-900">Mark as Advance</span>
+                        <span className="block text-xs text-gray-500">Payment made before supply</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handlePayment}
-                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
-                >
-                  Record Payment
-                </button>
+
+              {/* Footer */}
+              <div className="flex gap-3 justify-end mt-8 border-t pt-4">
                 <button
                   onClick={() => { setShowPaymentModal(false); setPaymentAmount(''); setSelectedVendor(null); }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                  className="px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
                 >
                   Cancel
+                </button>
+                <button
+                  onClick={handlePayment}
+                  className="px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold shadow-sm transition-colors flex items-center gap-2"
+                >
+                  <span>💸</span> Record Payment
                 </button>
               </div>
             </div>
@@ -506,3 +626,204 @@ const Vendors = () => {
 };
 
 export default Vendors;
+
+// Helper Component for Vendor Detail Modal with Tabs
+const VendorDetailModal = ({ vendor, onClose, stats, stocks }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'payments') {
+      fetchPayments();
+    }
+  }, [activeTab]);
+
+  const fetchPayments = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/admin/vendors/${vendor._id}/payments`);
+      if (res.data.success) {
+        setPayments(res.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-0 max-w-4xl w-full h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">{vendor.name}</h3>
+            <p className="text-sm text-gray-500">ID: {vendor.vendorId || vendor._id}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-xl">✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          <button
+            className={`px-6 py-3 font-medium text-sm ${activeTab === 'overview' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            Overview
+          </button>
+          <button
+            className={`px-6 py-3 font-medium text-sm ${activeTab === 'supplies' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('supplies')}
+          >
+            Supply History
+          </button>
+          <button
+            className={`px-6 py-3 font-medium text-sm ${activeTab === 'payments' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('payments')}
+          >
+            Payment History
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h4 className="font-bold text-gray-900">Contact Details</h4>
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 space-y-2">
+                  <div><span className="font-medium text-gray-500">Contact:</span> {vendor.contact}</div>
+                  <div><span className="font-medium text-gray-500">Email:</span> {vendor.email || 'N/A'}</div>
+                  <div><span className="font-medium text-gray-500">Address:</span> {vendor.address || 'N/A'}</div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-bold text-gray-900">Financial Summary</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-500">Total Supplied</div>
+                    <div className="text-xl font-bold text-green-600">₹{stats.totalSupplied.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-500">Pending Amount</div>
+                    <div className="text-xl font-bold text-red-600">₹{stats.pendingAmount.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-500">Total Paid</div>
+                    <div className="text-xl font-bold text-blue-600">₹{stats.totalPaid.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div className="text-sm text-gray-500">Total Items</div>
+                    <div className="text-xl font-bold text-purple-600">{stats.totalItems}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'supplies' && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-700 font-medium border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Material</th>
+                    <th className="px-4 py-3">Quantity</th>
+                    <th className="px-4 py-3">Price</th>
+                    <th className="px-4 py-3">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {stocks.length === 0 ? (
+                    <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">No supplies found</td></tr>
+                  ) : (
+                    stocks.map((stock) => (
+                      <tr key={stock._id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">{new Date(stock.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 font-medium">{stock.materialName}</td>
+                        <td className="px-4 py-3">{stock.quantity} {stock.unit}</td>
+                        <td className="px-4 py-3">₹{stock.unitPrice}</td>
+                        <td className="px-4 py-3 font-bold">₹{stock.totalPrice?.toLocaleString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeTab === 'payments' && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              {loading ? (
+                <div className="p-8 text-center text-gray-500">Loading payments...</div>
+              ) : (
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-700 font-medium border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3">Date & Time</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Mode</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Slip</th>
+                      <th className="px-4 py-3">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {payments.length === 0 ? (
+                      <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">No payment records found</td></tr>
+                    ) : (
+                      payments.map((payment) => (
+                        <tr key={payment._id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            {new Date(payment.date).toLocaleDateString()} <span className="text-gray-400">|</span> {new Date(payment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-green-600">₹{payment.amount.toLocaleString()}</td>
+                          <td className="px-4 py-3 capitalize">{payment.paymentMode.replace('_', ' ')}</td>
+                          <td className="px-4 py-3">
+                            {payment.isAdvance ? (
+                              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Advance</span>
+                            ) : (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">Regular</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {payment.receiptUrl ? (
+                              <a
+                                href={payment.receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline text-xs"
+                              >
+                                View Slip
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{payment.remarks || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-200 bg-white rounded-b-lg">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

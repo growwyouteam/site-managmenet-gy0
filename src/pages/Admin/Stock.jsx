@@ -26,6 +26,11 @@ const Stock = () => {
   const [editingStock, setEditingStock] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Filter states
+  const [filterProject, setFilterProject] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+
   const units = ['kg', 'ltr', 'bags', 'ft', 'meter', 'ton', 'piece', 'box', 'bundle'];
 
   useEffect(() => {
@@ -285,6 +290,33 @@ const Stock = () => {
     reader.readAsDataURL(file);
   };
 
+  // Filter stocks based on project and date
+  const getFilteredStocks = () => {
+    let filtered = [...stocks];
+
+    // Filter by project
+    if (filterProject) {
+      filtered = filtered.filter(s => {
+        const stockProjectId = typeof s.projectId === 'object' ? s.projectId._id : s.projectId;
+        return stockProjectId === filterProject;
+      });
+    }
+
+    // Filter by date range
+    if (filterDateFrom) {
+      filtered = filtered.filter(s => new Date(s.createdAt) >= new Date(filterDateFrom));
+    }
+    if (filterDateTo) {
+      const toDate = new Date(filterDateTo);
+      toDate.setHours(23, 59, 59, 999); // Include entire end date
+      filtered = filtered.filter(s => new Date(s.createdAt) <= toDate);
+    }
+
+    return filtered;
+  };
+
+  const filteredStocks = getFilteredStocks();
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -312,6 +344,56 @@ const Stock = () => {
             {showForm ? 'Cancel' : 'Add Stock'}
           </button>
         </div>
+      </div>
+
+      {/* Filters Section */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
+            <select
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Projects</option>
+              {projects.map(p => (
+                <option key={p._id} value={p._id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+        {(filterProject || filterDateFrom || filterDateTo) && (
+          <button
+            onClick={() => {
+              setFilterProject('');
+              setFilterDateFrom('');
+              setFilterDateTo('');
+            }}
+            className="mt-3 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -431,13 +513,13 @@ const Stock = () => {
 
         {/* Mobile View */}
         <div className="block md:hidden space-y-3">
-          {stocks.length === 0 ? (
+          {filteredStocks.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>No stock records found</p>
-              <p className="text-sm mt-2">Add your first stock entry above</p>
+              <p className="text-sm mt-2">{(filterProject || filterDateFrom || filterDateTo) ? 'Try adjusting your filters' : 'Add your first stock entry above'}</p>
             </div>
           ) : (
-            stocks.map(s => (
+            filteredStocks.map(s => (
               <div key={s._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
                 <div className="text-sm space-y-1">
@@ -475,10 +557,10 @@ const Stock = () => {
 
         {/* Desktop View */}
         <div className="hidden md:block overflow-x-auto">
-          {stocks.length === 0 ? (
+          {filteredStocks.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>No stock records found</p>
-              <p className="text-sm mt-2">Add your first stock entry above</p>
+              <p className="text-sm mt-2">{(filterProject || filterDateFrom || filterDateTo) ? 'Try adjusting your filters' : 'Add your first stock entry above'}</p>
             </div>
           ) : (
             <table className="w-full">
@@ -497,7 +579,7 @@ const Stock = () => {
                 </tr>
               </thead>
               <tbody>
-                {stocks.map(s => (
+                {filteredStocks.map(s => (
                   <tr key={s._id} className="border-b border-gray-200 hover:bg-gray-50">
                     <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : projects.find(p => p._id === s.projectId)?.name || '-'}</td>
                     <td className="px-4 py-3">{s.materialName}</td>

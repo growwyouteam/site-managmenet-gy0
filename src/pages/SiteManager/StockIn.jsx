@@ -18,6 +18,11 @@ const StockIn = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAllStocks, setShowAllStocks] = useState(false);
 
+  // Filter States
+  const [filterVendorId, setFilterVendorId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -37,7 +42,9 @@ const StockIn = () => {
           console.warn('⚠️ Failed to fetch projects:', err.message);
           return { data: { success: false, data: [] } };
         }),
-        api.get('/site/stocks').catch(err => {
+        api.get('/site/stocks', {
+          params: { startDate, endDate, vendorId: filterVendorId }
+        }).catch(err => {
           console.warn('⚠️ Failed to fetch stocks:', err.message);
           return { data: { success: false, data: [] } };
         })
@@ -402,94 +409,148 @@ const StockIn = () => {
           </div>
         </div>
 
-        {/* Mobile View */}
-        <div className="block md:hidden space-y-3">
-          {visibleStocks.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <p>No stock records found</p>
-              <p className="text-sm mt-2">Add your first stock entry above</p>
-            </div>
-          ) : (
-            visibleStocks.map(s => (
-              <div key={s._id || s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
-                <div className="text-sm space-y-1">
-                  <div><span className="font-medium">Project:</span> {typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</div>
-                  <div><span className="font-medium">Quantity:</span> <span className="font-bold text-green-600">{s.quantity} {s.unit}</span></div>
-                  <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
-                  <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
-                  <div><span className="font-medium">Vendor:</span> {typeof s.vendorId === 'object' ? s.vendorId?.name : s.vendorId}</div>
-                  <div><span className="font-medium">Date:</span> {new Date(s.createdAt).toLocaleDateString()}</div>
-                  {s.photo && (
-                    <div className="mt-2">
-                      <img src={s.photo} alt="Material" className="h-16 w-16 object-cover rounded border" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+      </div>
 
-        {/* Desktop View */}
-        <div className="hidden md:block overflow-x-auto">
-          {visibleStocks.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <p>No stock records found</p>
-              <p className="text-sm mt-2">Add your first stock entry above</p>
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-gray-200">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Photo</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleStocks.map(s => (
-                  <tr key={s._id || s.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
-                    <td className="px-4 py-3 font-medium">{s.materialName}</td>
-                    <td className="px-4 py-3 font-bold text-green-600">{s.quantity}</td>
-                    <td className="px-4 py-3">{s.unit}</td>
-                    <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
-                    <td className="px-4 py-3">{typeof s.vendorId === 'object' ? s.vendorId?.name : s.vendorId}</td>
-                    <td className="px-4 py-3">
-                      {s.photo ? (
-                        <img src={s.photo} alt="Material" className="h-12 w-12 object-cover rounded border" />
-                      ) : (
-                        <span className="text-gray-400 text-xs">No photo</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{new Date(s.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {/* Filters */}
+      <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 flex flex-wrap gap-4 items-end">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Filter</label>
+          <select
+            value={filterVendorId}
+            onChange={(e) => setFilterVendorId(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Vendors</option>
+            {vendors.map(v => <option key={v._id || v.id} value={v._id || v.id}>{v.name}</option>)}
+          </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={applyFilters}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Apply Filter
+          </button>
+          <button
+            onClick={() => { setFilterVendorId(''); setStartDate(''); setEndDate(''); setTimeout(fetchData, 100); }}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
 
-        {/* Load More Footer */}
-        {visibleStocks.length < stocks.length && (
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => setShowAllStocks(true)}
-              className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg font-medium transition-colors"
-            >
-              Load All Records ({stocks.length - visibleStocks.length} more)
-            </button>
+      {/* Mobile View */}
+      <div className="block md:hidden space-y-3">
+        {visibleStocks.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <p>No stock records found</p>
+            <p className="text-sm mt-2">Add your first stock entry above</p>
           </div>
+        ) : (
+          visibleStocks.map(s => (
+            <div key={s._id || s.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="font-bold text-gray-900 mb-2">{s.materialName}</div>
+              <div className="text-sm space-y-1">
+                <div><span className="font-medium">Project:</span> {typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</div>
+                <div><span className="font-medium">Quantity:</span> <span className="font-bold text-green-600">{s.quantity} {s.unit}</span></div>
+                <div><span className="font-medium">Unit Price:</span> <span className="text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</span></div>
+                <div><span className="font-medium">Total Price:</span> <span className="text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</span></div>
+                <div><span className="font-medium">Vendor:</span> {typeof s.vendorId === 'object' ? s.vendorId?.name : s.vendorId}</div>
+                <div><span className="font-medium">Added By:</span> {s.addedBy ? s.addedBy.name : 'N/A'}</div>
+                <div><span className="font-medium">Date & Time:</span> {new Date(s.createdAt).toLocaleDateString()} {new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                {s.photo && (
+                  <div className="mt-2">
+                    <img src={s.photo} alt="Material" className="h-16 w-16 object-cover rounded border" />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
         )}
       </div>
+
+      {/* Desktop View */}
+      <div className="hidden md:block overflow-x-auto">
+        {visibleStocks.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <p>No stock records found</p>
+            <p className="text-sm mt-2">Add your first stock entry above</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Material</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Unit Price</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Price</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vendor</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Added By</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Photo</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date & Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStocks.map(s => (
+                <tr key={s._id || s.id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="px-4 py-3">{typeof s.projectId === 'object' ? s.projectId?.name : s.projectId}</td>
+                  <td className="px-4 py-3 font-medium">{s.materialName}</td>
+                  <td className="px-4 py-3 font-bold text-green-600">{s.quantity}</td>
+                  <td className="px-4 py-3">{s.unit}</td>
+                  <td className="px-4 py-3 text-green-600 font-bold">₹{s.unitPrice?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-green-700 font-bold">₹{s.totalPrice?.toLocaleString()}</td>
+                  <td className="px-4 py-3">{typeof s.vendorId === 'object' ? s.vendorId?.name : s.vendorId}</td>
+                  <td className="px-4 py-3 text-gray-600 font-medium">{s.addedBy ? s.addedBy.name : '-'}</td>
+                  <td className="px-4 py-3">
+                    {s.photo ? (
+                      <img src={s.photo} alt="Material" className="h-12 w-12 object-cover rounded border" />
+                    ) : (
+                      <span className="text-gray-400 text-xs">No photo</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm">{new Date(s.createdAt).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-500">{new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Load More Footer */}
+      {visibleStocks.length < stocks.length && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setShowAllStocks(true)}
+            className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg font-medium transition-colors"
+          >
+            Load All Records ({stocks.length - visibleStocks.length} more)
+          </button>
+        </div>
+      )}
     </div>
   );
 };

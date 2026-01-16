@@ -120,6 +120,41 @@ const SMDashboard = () => {
         </div>
       </div>
 
+      <div className="mt-6 mb-6">
+        <div className={`relative overflow-hidden rounded-2xl shadow-lg p-6 sm:p-8 transition-all ${(data?.user?.walletBalance || 0) < 0
+            ? 'bg-gradient-to-br from-red-600 to-red-800'
+            : 'bg-gradient-to-br from-indigo-600 to-blue-700'
+          } text-white`}>
+          <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-indigo-100 text-sm font-bold uppercase tracking-wider mb-1">My Wallet Balance</h3>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl sm:text-5xl font-extrabold">
+                  ₹{data?.user?.walletBalance?.toLocaleString() || 0}
+                </span>
+                {(data?.user?.walletBalance || 0) < 0 && (
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+                    OVERDRAFT
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-indigo-100 opacity-90 text-sm max-w-xl">
+                {(data?.user?.walletBalance || 0) >= 0
+                  ? 'Funds allocated for site expenses. Use responsibly.'
+                  : 'Warning: Your expenses exceed the allocated funds. Please request a top-up from Admin.'}
+              </p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20">
+              <div className="text-4xl">💰</div>
+            </div>
+          </div>
+
+          {/* Decorative circles */}
+          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-5 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-white opacity-5 rounded-full blur-3xl"></div>
+        </div>
+      </div>
+
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-blue-500 text-white p-5 md:p-6 rounded-lg shadow-md">
           <h3 className="text-sm font-medium opacity-90 mb-2">Assigned Projects</h3>

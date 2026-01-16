@@ -83,7 +83,11 @@ const ProjectDetail = () => {
         </div>
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Labours</h3>
-          <p className="text-2xl md:text-3xl font-bold text-green-600">{data.labours?.length || 0}</p>
+          <p className="text-2xl md:text-3xl font-bold text-green-600">
+            {data.labours?.reduce((sum, l) => sum + (l.dailyWage || 0), 0).toLocaleString()}
+            <span className="text-sm text-gray-500 font-normal ml-1">/day</span>
+          </p>
+          <p className="text-xs text-gray-500 mt-1">{data.labours?.length || 0} active workers</p>
         </div>
         <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Stock Items</h3>
@@ -152,6 +156,8 @@ const ProjectDetail = () => {
                   <th className="px-4 py-3">Material</th>
                   <th className="px-4 py-3">Vendor</th>
                   <th className="px-4 py-3">Quantity</th>
+                  <th className="px-4 py-3">Consumed</th>
+                  <th className="px-4 py-3">Left</th>
                   <th className="px-4 py-3">Unit Price</th>
                   <th className="px-4 py-3">Total</th>
                   <th className="px-4 py-3">Date</th>
@@ -162,7 +168,9 @@ const ProjectDetail = () => {
                   <tr key={stock._id} className="bg-white border-b hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{stock.materialName}</td>
                     <td className="px-4 py-3">{stock.vendorId?.name || '-'}</td>
-                    <td className="px-4 py-3">{stock.quantity} {stock.unit}</td>
+                    <td className="px-4 py-3 font-semibold">{stock.quantity} {stock.unit}</td>
+                    <td className="px-4 py-3 text-red-600">{stock.consumed || 0} {stock.unit}</td>
+                    <td className="px-4 py-3 text-green-600 font-bold">{(stock.quantity - (stock.consumed || 0))} {stock.unit}</td>
                     <td className="px-4 py-3">₹{stock.unitPrice}</td>
                     <td className="px-4 py-3 font-bold text-green-600">₹{stock.totalPrice?.toLocaleString()}</td>
                     <td className="px-4 py-3">{new Date(stock.createdAt).toLocaleDateString()}</td>

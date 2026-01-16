@@ -5,23 +5,100 @@ import { showToast } from '../../components/Toast';
 const Transfer = () => {
   const [transfers, setTransfers] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [labours, setLabours] = useState([]);
-  const [machines, setMachines] = useState([]);
-  const [stocks, setStocks] = useState([]);
-  const [labEquipments, setLabEquipments] = useState([]);
-  const [consumableGoods, setConsumableGoods] = useState([]);
-  const [equipments, setEquipments] = useState([]);
+
+  // Raw Data
+  const [allLabours, setAllLabours] = useState([]);
+  const [allMachines, setAllMachines] = useState([]); // Includes big machines
+  const [allStocks, setAllStocks] = useState([]);
+  const [allLabEquipments, setAllLabEquipments] = useState([]);
+  const [allConsumables, setAllConsumables] = useState([]);
+  const [allEquipments, setAllEquipments] = useState([]);
+
+  // Form State
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ type: 'labour', itemId: '', fromProject: '', toProject: '', quantity: 1 });
+  const [formData, setFormData] = useState({
+    type: 'labour',
+    itemId: '',
+    fromProject: '',
+    toProject: '',
+    quantity: 1
+  });
+
+  // Derived/Filtered State
+  const [availableItems, setAvailableItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  // Filter items whenever fromProject or type changes
+  useEffect(() => {
+    if (!formData.fromProject || !formData.type) {
+      setAvailableItems([]);
+      return;
+    }
+
+    let filtered = [];
+    const pid = formData.fromProject;
+
+    switch (formData.type) {
+      case 'labour':
+        // Handle both populated object and direct ID
+        filtered = allLabours.filter(l => {
+          const siteId = typeof l.assignedSite === 'object' ? l.assignedSite?._id : l.assignedSite;
+          return siteId === pid && l.active;
+        });
+        break;
+      case 'machine':
+        // Handle both populated object and direct ID
+        filtered = allMachines.filter(m => {
+          const projId = typeof m.projectId === 'object' ? m.projectId?._id : m.projectId;
+          return projId === pid && m.status !== 'in-use';
+        });
+        break;
+      case 'stock':
+        // Handle both populated object and direct ID
+        filtered = allStocks.filter(s => {
+          const projId = typeof s.projectId === 'object' ? s.projectId?._id : s.projectId;
+          return projId === pid && s.quantity > 0;
+        });
+        break;
+      case 'lab-equipment':
+        // Handle both populated object and direct ID
+        filtered = allLabEquipments.filter(e => {
+          const projId = typeof e.projectId === 'object' ? e.projectId?._id : e.projectId;
+          return projId === pid && e.status !== 'in-use';
+        });
+        break;
+      case 'consumable-goods':
+        // Handle both populated object and direct ID
+        filtered = allConsumables.filter(c => {
+          const projId = typeof c.projectId === 'object' ? c.projectId?._id : c.projectId;
+          return projId === pid && c.quantity > 0;
+        });
+        break;
+      case 'equipment':
+        // Handle both populated object and direct ID
+        filtered = allEquipments.filter(e => {
+          const projId = typeof e.projectId === 'object' ? e.projectId?._id : e.projectId;
+          return projId === pid && e.status !== 'in-use';
+        });
+        break;
+      default:
+        filtered = [];
+    }
+    setAvailableItems(filtered);
+
+    // Reset selected item
+    setFormData(prev => ({ ...prev, itemId: '' }));
+
+  }, [formData.fromProject, formData.type, allLabours, allMachines, allStocks, allLabEquipments, allConsumables, allEquipments]);
+
+
   const fetchData = async () => {
     try {
-      const [transfersRes, projectsRes, laboursRes, machinesRes, stocksRes, labEquipmentsRes, consumableGoodsRes, equipmentsRes] = await Promise.all([
+      const results = await Promise.all([
         api.get('/admin/transfers'),
         api.get('/admin/projects'),
         api.get('/admin/labours'),
@@ -32,55 +109,27 @@ const Transfer = () => {
         api.get('/admin/equipments')
       ]);
 
-      if (transfersRes.data.success) {
-        setTransfers(transfersRes.data.data);
-      }
+      const [transfersRes, projectsRes, laboursRes, machinesRes, stocksRes, labEquipmentsRes, consumableGoodsRes, equipmentsRes] = results;
 
+      if (transfersRes.data.success) setTransfers(transfersRes.data.data);
       if (projectsRes.data.success) {
         setProjects(projectsRes.data.data);
-        if (projectsRes.data.data.length > 0) {
-          setFormData(prev => ({
-            ...prev,
-            fromProject: prev.fromProject || projectsRes.data.data[0]._id,
-            toProject: prev.toProject || projectsRes.data.data[0]._id
-          }));
+        // Initialize fromProject if empty
+        if (projectsRes.data.data.length > 0 && !formData.fromProject) {
+          setFormData(prev => ({ ...prev, fromProject: projectsRes.data.data[0]._id }));
         }
       }
 
-      if (laboursRes.data.success) {
-        setLabours(laboursRes.data.data);
-        if (laboursRes.data.data.length > 0 && formData.type === 'labour') {
-          setFormData(prev => ({ ...prev, itemId: prev.itemId || laboursRes.data.data[0]._id }));
-        }
-      }
+      if (laboursRes.data.success) setAllLabours(laboursRes.data.data);
+      if (machinesRes.data.success) setAllMachines(machinesRes.data.data.filter(m => m.category === 'big'));
+      if (stocksRes.data.success) setAllStocks(stocksRes.data.data);
+      if (labEquipmentsRes.data.success) setAllLabEquipments(labEquipmentsRes.data.data);
+      if (consumableGoodsRes.data.success) setAllConsumables(consumableGoodsRes.data.data);
+      if (equipmentsRes.data.success) setAllEquipments(equipmentsRes.data.data);
 
-      if (machinesRes.data.success) {
-        setMachines(machinesRes.data.data);
-        if (machinesRes.data.data.length > 0 && formData.type === 'machine') {
-          setFormData(prev => ({ ...prev, itemId: prev.itemId || machinesRes.data.data[0]._id }));
-        }
-      }
-
-      if (stocksRes.data.success) {
-        setStocks(stocksRes.data.data);
-        if (stocksRes.data.data.length > 0 && formData.type === 'stock') {
-          setFormData(prev => ({ ...prev, itemId: prev.itemId || stocksRes.data.data[0]._id }));
-        }
-      }
-
-      if (labEquipmentsRes.data.success) {
-        setLabEquipments(labEquipmentsRes.data.data);
-      }
-
-      if (consumableGoodsRes.data.success) {
-        setConsumableGoods(consumableGoodsRes.data.data);
-      }
-
-      if (equipmentsRes.data.success) {
-        setEquipments(equipmentsRes.data.data);
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
+      showToast('Error loading data', 'error');
     }
   };
 
@@ -88,18 +137,28 @@ const Transfer = () => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    if (!formData.fromProject || !formData.toProject || !formData.itemId) {
+      showToast('Please fill all required fields', 'error');
+      return;
+    }
+
+    if (formData.fromProject === formData.toProject) {
+      showToast('Source and destination projects cannot be the same', 'error');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const response = await api.post('/admin/transfers', formData);
       if (response.data.success) {
-        showToast('Transfer completed', 'success');
+        showToast('Transfer completed successfully', 'success');
         setShowForm(false);
-        setFormData({ type: 'labour', itemId: '', fromProject: projects[0]?._id || '', toProject: projects[0]?._id || '', quantity: 1 });
-        fetchData();
+        // Reset form but keep filtered project
+        setFormData({ ...formData, itemId: '', quantity: 1, type: 'labour' });
+        fetchData(); // Refresh data to reflect moves
       }
     } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to create transfer', 'error');
-      console.error('Error creating transfer:', error);
+      showToast(error.response?.data?.error || 'Transfer failed', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -107,235 +166,219 @@ const Transfer = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Resource Transfer</h1>
-      <button
-        onClick={() => setShowForm(!showForm)}
-        className="px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-      >
-        {showForm ? 'Cancel' : 'New Transfer'}
-      </button>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Resource Transfer</h1>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+        >
+          {showForm ? 'Cancel Transfer' : '➕ New Transfer'}
+        </button>
+      </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="mt-5 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 mb-8 animate-fade-in-down">
+          <h2 className="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">New Transfer Request</h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* 1. From Project */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Transfer Type</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">From Project (Source)</label>
+              <select
+                value={formData.fromProject}
+                onChange={(e) => setFormData({ ...formData, fromProject: e.target.value, itemId: '' })}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                required
+              >
+                <option value="">Select Source Project</option>
+                {projects.map(p => (
+                  <option key={p._id} value={p._id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Transfer Type */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Resource Type</label>
               <select
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({ ...formData, type: e.target.value, itemId: '' })}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               >
                 <option value="labour">👷 Labour</option>
-                <option value="machine">🚜 Machine</option>
-                <option value="stock">📦 Stock</option>
-                <option value="lab-equipment">🧪 Lab Test Equipment</option>
-                <option value="consumable-goods">🛒 Consumable Goods</option>
+                <option value="machine">🚜 Big Machine</option>
+                <option value="stock">🧱 Stock Material</option>
+                <option value="lab-equipment">🧪 Lab Equipment</option>
+                <option value="consumable-goods">📦 Consumable Goods</option>
                 <option value="equipment">🔧 Equipment</option>
               </select>
             </div>
-            {formData.type === 'labour' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Labour</label>
-                <select
-                  value={formData.itemId}
-                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Labour</option>
-                  {labours.map(l => <option key={l._id} value={l._id}>{l.name} - {l.designation || 'Labour'}</option>)}
-                </select>
-              </div>
-            )}
-            {formData.type === 'machine' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Machine/Equipment</label>
-                <select
-                  value={formData.itemId}
-                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Machine</option>
-                  {machines.map(m => <option key={m._id} value={m._id}>{m.name} ({m.category || 'N/A'}) - {m.status || 'Available'}</option>)}
-                </select>
-              </div>
-            )}
-            {formData.type === 'stock' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Stock Item</label>
-                <select
-                  value={formData.itemId}
-                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Stock</option>
-                  {stocks.map(s => <option key={s._id} value={s._id}>{s.materialName} ({s.quantity} {s.unit})</option>)}
-                </select>
-              </div>
-            )}
-            {formData.type === 'lab-equipment' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Lab Equipment</label>
-                <select
-                  value={formData.itemId}
-                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Lab Equipment</option>
-                  {labEquipments.map(e => <option key={e._id} value={e._id}>{e.name} - {e.projectId?.name || 'N/A'}</option>)}
-                </select>
-              </div>
-            )}
-            {formData.type === 'consumable-goods' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Consumable Goods</label>
-                <select
-                  value={formData.itemId}
-                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Consumable Goods</option>
-                  {consumableGoods.map(c => <option key={c._id} value={c._id}>{c.name} ({c.quantity} {c.unit}) - {c.projectId?.name || 'N/A'}</option>)}
-                </select>
-              </div>
-            )}
-            {formData.type === 'equipment' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Equipment</label>
-                <select
-                  value={formData.itemId}
-                  onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Equipment</option>
-                  {equipments.map(e => <option key={e._id} value={e._id}>{e.name} - {e.projectId?.name || 'N/A'}</option>)}
-                </select>
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">From Project *</label>
+
+            {/* 3. Item Selection (Filtered) */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Select Item ({availableItems.length} available)
+              </label>
               <select
-                value={formData.fromProject}
-                onChange={(e) => setFormData({ ...formData, fromProject: e.target.value })}
+                value={formData.itemId}
+                onChange={(e) => setFormData({ ...formData, itemId: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Select From Project</option>
-                {projects.map(p => <option key={p._id} value={p._id}>{p.name} ({p.location})</option>)}
+                <option value="">-- Select Item to Transfer --</option>
+                {availableItems.map(item => (
+                  <option key={item._id} value={item._id}>
+                    {item.name || item.materialName || item.itemName}
+                    {item.quantity ? ` (Qty: ${item.quantity} ${item.unit || ''})` : ''}
+                    {item.dailyWage ? ` (Wage: ₹${item.dailyWage})` : ''}
+                    {item.plateNumber ? ` [${item.plateNumber}]` : ''}
+                  </option>
+                ))}
               </select>
+              {availableItems.length === 0 && formData.fromProject && (
+                <p className="text-sm text-red-500 mt-1">No available {formData.type} found in source project.</p>
+              )}
             </div>
+
+            {/* 4. To Project */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">To Project *</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">To Project (Destination)</label>
               <select
                 value={formData.toProject}
                 onChange={(e) => setFormData({ ...formData, toProject: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Select To Project</option>
-                {projects.map(p => <option key={p._id} value={p._id}>{p.name} ({p.location})</option>)}
+                <option value="">Select Destination Project</option>
+                {projects.filter(p => p._id !== formData.fromProject).map(p => (
+                  <option key={p._id} value={p._id}>{p.name}</option>
+                ))}
               </select>
             </div>
-            {(formData.type === 'stock' || formData.type === 'machine') && (
+
+            {/* 5. Quantity (Condition for Stock/Consumables) */}
+            {(formData.type === 'stock' || formData.type === 'consumable-goods') && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Quantity</label>
                 <input
                   type="number"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) || 1 })}
                   min="1"
+                  step="0.01"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             )}
-          </div>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`mt-5 px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
-          >
-            {isSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
-            {isSubmitting ? 'Processing...' : 'Transfer'}
-          </button>
-        </form>
+
+            <div className="md:col-span-2 flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="px-6 py-2.5 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`px-8 py-2.5 text-white rounded-lg font-medium transition-all shadow-md transform active:scale-95 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'}`}
+              >
+                {isSubmitting ? 'Processing Transfer...' : 'Confirm Transfer'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
-      <div className="mt-6 bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Transfer History</h2>
+      {/* Transfer History Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-4 md:p-6 border-b border-gray-200 bg-gray-50">
+          <h2 className="text-lg font-bold text-gray-800">Transfer History</h2>
+        </div>
 
         {/* Mobile View */}
-        <div className="block md:hidden space-y-3">
-          {transfers.map(t => (
-            <div key={t._id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="font-bold text-gray-900 mb-2">
-                {t.type === 'labour' && '👷 '}
-                {t.type === 'machine' && '🚜 '}
-                {t.type === 'stock' && '📦 '}
-                {t.type?.charAt(0).toUpperCase() + t.type?.slice(1)} Transfer
-              </div>
-              <div className="text-sm space-y-1">
-                <div><span className="font-medium">Item:</span> {t.itemName || 'N/A'}</div>
-                <div><span className="font-medium">From:</span> {typeof t.fromProject === 'object' ? t.fromProject?.name : t.fromProject}</div>
-                <div><span className="font-medium">To:</span> {typeof t.toProject === 'object' ? t.toProject?.name : t.toProject}</div>
-                {t.quantity && <div><span className="font-medium">Quantity:</span> {t.quantity}</div>}
-                <div><span className="font-medium">Status:</span>
-                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${t.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    t.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                    {t.status}
-                  </span>
+        <div className="block md:hidden">
+          {transfers.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">No transfers recorded yet</div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {transfers.map(t => (
+                <div key={t._id} className="p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${t.type === 'labour' ? 'bg-yellow-100 text-yellow-800' :
+                      t.type === 'stock' ? 'bg-green-100 text-green-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`}>
+                      {t.type}
+                    </span>
+                    <span className="text-xs text-gray-500">{new Date(t.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="mb-1 text-sm text-gray-900">
+                    <span className="font-semibold">{t.fromProject?.name || 'Unknown'}</span>
+                    <span className="text-gray-400 mx-2">→</span>
+                    <span className="font-semibold">{t.toProject?.name || 'Unknown'}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Item: <span className="font-medium text-gray-900">
+                      {t.labourId?.name || t.machineId?.name || t.materialName || 'Unknown'}
+                    </span>
+                  </div>
+                  {t.quantity > 1 && (
+                    <div className="text-xs text-gray-500 mt-1">Qty: {t.quantity}</div>
+                  )}
                 </div>
-                <div><span className="font-medium">Date:</span> {new Date(t.createdAt).toLocaleDateString()}</div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
         {/* Desktop View */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Item</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">From</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">To</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Quantity</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+              <tr>
+                <th className="px-6 py-4 font-bold border-b">Type</th>
+                <th className="px-6 py-4 font-bold border-b">From Project</th>
+                <th className="px-6 py-4 font-bold border-b">To Project</th>
+                <th className="px-6 py-4 font-bold border-b">Item Name</th>
+                <th className="px-6 py-4 font-bold border-b text-center">Quantity</th>
+                <th className="px-6 py-4 font-bold border-b">Date</th>
+                <th className="px-6 py-4 font-bold border-b">Status</th>
               </tr>
             </thead>
-            <tbody>
-              {transfers.map(t => (
-                <tr key={t._id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    {t.type === 'labour' && '👷 '}
-                    {t.type === 'machine' && '🚜 '}
-                    {t.type === 'stock' && '📦 '}
-                    {t.type?.charAt(0).toUpperCase() + t.type?.slice(1)}
-                  </td>
-                  <td className="px-4 py-3">{t.itemName || 'N/A'}</td>
-                  <td className="px-4 py-3">{typeof t.fromProject === 'object' ? t.fromProject?.name : t.fromProject}</td>
-                  <td className="px-4 py-3">{typeof t.toProject === 'object' ? t.toProject?.name : t.toProject}</td>
-                  <td className="px-4 py-3">{t.quantity || '1'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${t.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      t.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                      {t.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">{new Date(t.createdAt).toLocaleDateString()}</td>
+            <tbody className="divide-y divide-gray-200">
+              {transfers.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">No transfers found</td>
                 </tr>
-              ))}
+              ) : (
+                transfers.map(t => (
+                  <tr key={t._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${t.type === 'labour' ? 'bg-yellow-100 text-yellow-800' :
+                        t.type === 'stock' ? 'bg-green-100 text-green-800' :
+                          'bg-purple-100 text-purple-800'
+                        }`}>
+                        {t.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-gray-900">{t.fromProject?.name || 'Unknown'}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900">{t.toProject?.name || 'Unknown'}</td>
+                    <td className="px-6 py-4">
+                      {t.labourId?.name || t.machineId?.name || t.materialName || 'Unknown'}
+                    </td>
+                    <td className="px-6 py-4 text-center">{t.quantity}</td>
+                    <td className="px-6 py-4">{new Date(t.createdAt).toLocaleDateString()}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-2.5 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+                        {t.status || 'Completed'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

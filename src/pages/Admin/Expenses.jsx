@@ -14,7 +14,8 @@ const Expenses = () => {
     amount: '',
     voucherNumber: '',
     category: 'material',
-    remarks: ''
+    remarks: '',
+    paymentMode: 'cash'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -141,7 +142,8 @@ const Expenses = () => {
           amount: '',
           voucherNumber: '',
           category: 'material',
-          remarks: ''
+          remarks: '',
+          paymentMode: 'cash'
         });
         fetchExpenses();
       }
@@ -197,13 +199,17 @@ const Expenses = () => {
       amount: '',
       voucherNumber: '',
       category: 'material',
-      remarks: ''
+      remarks: '',
+      paymentMode: 'cash'
     });
   };
 
   const filteredExpenses = selectedProject === 'all'
     ? expenses
-    : expenses.filter(e => e.projectId === selectedProject);
+    : expenses.filter(e => {
+      const pId = typeof e.projectId === 'object' ? e.projectId?._id : e.projectId;
+      return pId === selectedProject;
+    });
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -295,6 +301,20 @@ const Expenses = () => {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
+              <select
+                value={formData.paymentMode}
+                onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="cash">💵 Cash</option>
+                <option value="upi">📱 UPI</option>
+                <option value="bank">🏦 Bank Transfer</option>
+                <option value="check">📝 Check</option>
+                <option value="other">🔹 Other</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
               <input
                 type="text"
@@ -339,6 +359,7 @@ const Expenses = () => {
               <div className="font-bold text-gray-900 mb-2">{e.name}</div>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">Project:</span> {typeof e.projectId === 'object' ? e.projectId?.name : e.projectId}</div>
+                <div><span className="font-medium">Added By:</span> {e.addedBy?.name || 'Admin'}</div>
                 <div><span className="font-medium">Amount:</span> <span className="text-red-600 font-bold">₹{e.amount?.toLocaleString()}</span></div>
                 <div><span className="font-medium">Category:</span>
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${e.category === 'material' ? 'bg-blue-100 text-blue-800' :
@@ -363,12 +384,6 @@ const Expenses = () => {
                     ✏️ Edit
                   </button>
                 )}
-                <button
-                  onClick={() => handleDelete(e._id, e.isContractorPayment)}
-                  className="flex-1 px-3 py-2 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
-                >
-                  🗑️ Delete
-                </button>
               </div>
             </div>
           ))}
@@ -381,6 +396,7 @@ const Expenses = () => {
               <tr className="border-b-2 border-gray-200">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Added By</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Amount</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Voucher</th>
@@ -393,19 +409,13 @@ const Expenses = () => {
                 <tr key={e._id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-4 py-3">{typeof e.projectId === 'object' ? e.projectId?.name : e.projectId}</td>
                   <td className="px-4 py-3">{e.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{e.addedBy?.name || 'Admin'}</td>
                   <td className="px-4 py-3 capitalize">{e.category || 'N/A'}</td>
                   <td className="px-4 py-3 font-bold text-red-600">₹{e.amount?.toLocaleString()}</td>
                   <td className="px-4 py-3">{e.voucherNumber || 'N/A'}</td>
                   <td className="px-4 py-3">{new Date(e.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {!e.isContractorPayment && (
-                      <button
-                        onClick={() => handleDelete(e._id, e.isContractorPayment)}
-                        className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-                      >
-                        Delete
-                      </button>
-                    )}
+                    {/* Delete button removed as per request */}
                   </td>
                 </tr>
               ))}
